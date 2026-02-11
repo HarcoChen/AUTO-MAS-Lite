@@ -12,8 +12,11 @@
           <span v-if="updateInfo?.if_need_update" class="update-hint">
             检测到更新 {{ updateInfo.latest_version }} 请尽快更新
           </span>
-          <span v-if="backendUpdateInfo?.if_need_update" class="update-hint clickable"
-            @click="handleBackendUpdateClick">
+          <span
+            v-if="backendUpdateInfo?.if_need_update"
+            class="update-hint clickable"
+            @click="handleBackendUpdateClick"
+          >
             检测到后端更新，点击以更新后端
           </span>
         </span>
@@ -23,13 +26,17 @@
     <!-- 中间：可拖拽区域 -->
     <div class="title-bar-center drag-region"></div>
 
-    <!-- 右侧：窗口控制按钮 -->
+    <!-- 右侧：窗口控制按钮 (仅 Electron 模式) -->
     <div class="title-bar-right">
-      <div class="window-controls">
+      <div v-if="isElectron" class="window-controls">
         <button class="control-button minimize-button" title="最小化" @click="minimizeWindow">
           <MinusOutlined />
         </button>
-        <button class="control-button maximize-button" :title="isMaximized ? '还原' : '最大化'" @click="toggleMaximize">
+        <button
+          class="control-button maximize-button"
+          :title="isMaximized ? '还原' : '最大化'"
+          @click="toggleMaximize"
+        >
           <BorderOutlined />
         </button>
         <button class="control-button close-button" title="关闭" @click="closeWindow">
@@ -46,11 +53,13 @@ import { useTheme } from '@/composables/useTheme'
 import { updateInfo, backendUpdateInfo } from '@/composables/useVersionService'
 import { useAppInitialization } from '@/composables/useAppInitialization'
 import { BorderOutlined, CloseOutlined, MinusOutlined } from '@ant-design/icons-vue'
-import { Modal } from 'ant-design-vue'
+import { Modal, message } from 'ant-design-vue'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { isElectron } from '@/main'
 
-const logger = window.electronAPI.getLogger('标题栏')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('标题栏')
 const router = useRouter()
 const { resetInitializationStatus } = useAppInitialization()
 
@@ -97,6 +106,11 @@ const getUpdateTooltip = () => {
 
 // 处理后端更新点击
 const handleBackendUpdateClick = () => {
+  if (!isElectron) {
+    message.warning('Web 模式：此操作仅在桌面版中可用')
+    return
+  }
+
   Modal.confirm({
     title: '重启后端以更新',
     content: '即将更新后端，这需要重启后端程序，您当前正在运行的任务将会被中断。确认继续？',
@@ -134,8 +148,13 @@ const handleBackendUpdateClick = () => {
 }
 
 const minimizeWindow = async () => {
+  if (!isElectron || !window.electronAPI?.windowMinimize) {
+    logger.warn('Web 模式或 Electron API 不可用：无法最小化窗口')
+    return
+  }
+
   try {
-    await window.electronAPI?.windowMinimize()
+    await window.electronAPI.windowMinimize()
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`最小化窗口失败: ${errorMsg}`)
@@ -143,9 +162,14 @@ const minimizeWindow = async () => {
 }
 
 const toggleMaximize = async () => {
+  if (!isElectron || !window.electronAPI?.windowMaximize) {
+    logger.warn('Web 模式或 Electron API 不可用：无法切换最大化')
+    return
+  }
+
   try {
-    await window.electronAPI?.windowMaximize()
-    isMaximized.value = (await window.electronAPI?.windowIsMaximized()) || false
+    await window.electronAPI.windowMaximize()
+    isMaximized.value = (await window.electronAPI.windowIsMaximized()) || false
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`切换最大化状态失败: ${errorMsg}`)
@@ -160,9 +184,15 @@ const doCloseWindow = async () => {
     // 显示关闭遮罩
     showClosingOverlay()
 
-    // 直接关闭窗口，后台清理由主进程处理
-    logger.info('正在退出应用...')
-    await window.electronAPI?.appQuit()
+    if (isElectron && window.electronAPI?.appQuit) {
+      // Electron 模式：通过 IPC 关闭应用
+      logger.info('正在退出应用...')
+      await window.electronAPI.appQuit()
+    } else {
+      // Web 模式：显示提示
+      message.info('Web 模式：请关闭浏览器标签页以退出应用')
+      logger.info('Web 模式：用户需要手动关闭浏览器标签页')
+    }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`关闭应用失败: ${errorMsg}`)
@@ -190,6 +220,12 @@ const closeWindow = async () => {
 }
 
 onMounted(async () => {
+  // Web 模式中跳过窗口状态检查
+  if (!isElectron) {
+    logger.info('Web 模式：跳过窗口状态检查')
+    return
+  }
+
   try {
     isMaximized.value = (await window.electronAPI?.windowIsMaximized()) || false
   } catch (error) {
@@ -357,16 +393,18 @@ onMounted(async () => {
   font-weight: 600;
   margin-left: 4px;
   cursor: help;
-  background: linear-gradient(45deg,
-      #ff1744,
-      #ff5722,
-      #ff9800,
-      #ffc107,
-      #4caf50,
-      #00bcd4,
-      #2196f3,
-      #9c27b0,
-      #ff1744);
+  background: linear-gradient(
+    45deg,
+    #ff1744,
+    #ff5722,
+    #ff9800,
+    #ffc107,
+    #4caf50,
+    #00bcd4,
+    #2196f3,
+    #9c27b0,
+    #ff1744
+  );
   background-size: 400% 400%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -410,16 +448,18 @@ onMounted(async () => {
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg,
-      #ff1744,
-      #ff5722,
-      #ff9800,
-      #ffc107,
-      #4caf50,
-      #00bcd4,
-      #2196f3,
-      #9c27b0,
-      #ff1744);
+  background: linear-gradient(
+    45deg,
+    #ff1744,
+    #ff5722,
+    #ff9800,
+    #ffc107,
+    #4caf50,
+    #00bcd4,
+    #2196f3,
+    #9c27b0,
+    #ff1744
+  );
   background-size: 400% 400%;
   border-radius: 6px;
   z-index: -1;
@@ -442,7 +482,7 @@ onMounted(async () => {
 }
 
 /* 为相邻的更新提示添加间距 */
-.update-hint+.update-hint {
+.update-hint + .update-hint {
   margin-left: 12px;
 }
 
