@@ -12,8 +12,15 @@
 
     <div class="step-content">
       <!-- 当前步骤内容 -->
-      <component :is="currentStepComponent" v-bind="currentStepProps" @update:selected-mirror="handleMirrorSelect"
-        @retry="handleRetry" @skip="handleSkip" @complete="handleBackendComplete" @error="handleBackendError" />
+      <component
+        :is="currentStepComponent"
+        v-bind="currentStepProps"
+        @update:selected-mirror="handleMirrorSelect"
+        @retry="handleRetry"
+        @skip="handleSkip"
+        @complete="handleBackendComplete"
+        @error="handleBackendError"
+      />
     </div>
 
     <!-- 步骤操作按钮区域 - 后端启动完成后会自动进入应用，不需要手动按钮 -->
@@ -21,9 +28,19 @@
   </div>
 
   <!-- 跳过初始化弹窗 -->
-  <a-modal v-model:open="forceEnterVisible" title="警告" ok-text="我知道我在做什么" cancel-text="取消"
-    @ok="handleForceEnterConfirm">
-    <a-alert message="注意" description="你正在尝试跳过初始化流程，可能导致程序无法正常运行。请确保你已经手动完成了所有配置。" type="warning" show-icon />
+  <a-modal
+    v-model:open="forceEnterVisible"
+    title="警告"
+    ok-text="我知道我在做什么"
+    cancel-text="取消"
+    @ok="handleForceEnterConfirm"
+  >
+    <a-alert
+      message="注意"
+      description="你正在尝试跳过初始化流程，可能导致程序无法正常运行。请确保你已经手动完成了所有配置。"
+      type="warning"
+      show-icon
+    />
   </a-modal>
 </template>
 
@@ -35,8 +52,12 @@ import { markAsInitialized } from '@/composables/useAppInitialization'
 import StepPanel from './components/StepPanel.vue'
 import BackendStartStep from './components/BackendStartStep.vue'
 import type { MirrorConfig } from '@/types/mirror'
+import { createLogger } from '@/utils/logger'
 
-const logger = window.electronAPI.getLogger('初始化流程')
+const logger = createLogger('初始化流程')
+
+// 检查是否为 Electron 环境
+const isElectron = typeof window !== 'undefined' && (window as any).electronAPI !== undefined
 
 // ==================== 步骤定义 ====================
 const steps = [
@@ -93,12 +114,108 @@ interface StepState {
 }
 
 const stepStates = ref<Record<string, StepState>>({
-  python: { status: 'waiting', message: '', progress: 0, showMirrorSelection: false, mirrors: [], selectedMirror: '', countdown: 0, currentMirror: '', downloadSpeed: '', downloadSize: '', installMessage: '', installProgress: 0, deployMessage: '', deployProgress: 0, operationDesc: '' },
-  pip: { status: 'waiting', message: '', progress: 0, showMirrorSelection: false, mirrors: [], selectedMirror: '', countdown: 0, currentMirror: '', downloadSpeed: '', downloadSize: '', installMessage: '', installProgress: 0, deployMessage: '', deployProgress: 0, operationDesc: '' },
-  git: { status: 'waiting', message: '', progress: 0, showMirrorSelection: false, mirrors: [], selectedMirror: '', countdown: 0, currentMirror: '', downloadSpeed: '', downloadSize: '', installMessage: '', installProgress: 0, deployMessage: '', deployProgress: 0, operationDesc: '' },
-  repository: { status: 'waiting', message: '', progress: 0, showMirrorSelection: false, mirrors: [], selectedMirror: '', countdown: 0, currentMirror: '', downloadSpeed: '', downloadSize: '', installMessage: '', installProgress: 0, deployMessage: '', deployProgress: 0, operationDesc: '' },
-  dependency: { status: 'waiting', message: '', progress: 0, showMirrorSelection: false, mirrors: [], selectedMirror: '', countdown: 0, currentMirror: '', downloadSpeed: '', downloadSize: '', installMessage: '', installProgress: 0, deployMessage: '', deployProgress: 0, operationDesc: '' },
-  backend: { status: 'waiting', message: '', progress: 0, showMirrorSelection: false, mirrors: [], selectedMirror: '', countdown: 0, currentMirror: '', downloadSpeed: '', downloadSize: '', installMessage: '', installProgress: 0, deployMessage: '', deployProgress: 0, operationDesc: '' },
+  python: {
+    status: 'waiting',
+    message: '',
+    progress: 0,
+    showMirrorSelection: false,
+    mirrors: [],
+    selectedMirror: '',
+    countdown: 0,
+    currentMirror: '',
+    downloadSpeed: '',
+    downloadSize: '',
+    installMessage: '',
+    installProgress: 0,
+    deployMessage: '',
+    deployProgress: 0,
+    operationDesc: '',
+  },
+  pip: {
+    status: 'waiting',
+    message: '',
+    progress: 0,
+    showMirrorSelection: false,
+    mirrors: [],
+    selectedMirror: '',
+    countdown: 0,
+    currentMirror: '',
+    downloadSpeed: '',
+    downloadSize: '',
+    installMessage: '',
+    installProgress: 0,
+    deployMessage: '',
+    deployProgress: 0,
+    operationDesc: '',
+  },
+  git: {
+    status: 'waiting',
+    message: '',
+    progress: 0,
+    showMirrorSelection: false,
+    mirrors: [],
+    selectedMirror: '',
+    countdown: 0,
+    currentMirror: '',
+    downloadSpeed: '',
+    downloadSize: '',
+    installMessage: '',
+    installProgress: 0,
+    deployMessage: '',
+    deployProgress: 0,
+    operationDesc: '',
+  },
+  repository: {
+    status: 'waiting',
+    message: '',
+    progress: 0,
+    showMirrorSelection: false,
+    mirrors: [],
+    selectedMirror: '',
+    countdown: 0,
+    currentMirror: '',
+    downloadSpeed: '',
+    downloadSize: '',
+    installMessage: '',
+    installProgress: 0,
+    deployMessage: '',
+    deployProgress: 0,
+    operationDesc: '',
+  },
+  dependency: {
+    status: 'waiting',
+    message: '',
+    progress: 0,
+    showMirrorSelection: false,
+    mirrors: [],
+    selectedMirror: '',
+    countdown: 0,
+    currentMirror: '',
+    downloadSpeed: '',
+    downloadSize: '',
+    installMessage: '',
+    installProgress: 0,
+    deployMessage: '',
+    deployProgress: 0,
+    operationDesc: '',
+  },
+  backend: {
+    status: 'waiting',
+    message: '',
+    progress: 0,
+    showMirrorSelection: false,
+    mirrors: [],
+    selectedMirror: '',
+    countdown: 0,
+    currentMirror: '',
+    downloadSpeed: '',
+    downloadSize: '',
+    installMessage: '',
+    installProgress: 0,
+    deployMessage: '',
+    deployProgress: 0,
+    operationDesc: '',
+  },
 })
 
 // 倒计时定时器
@@ -125,7 +242,10 @@ const currentStepProps = computed(() => {
     message: state.message,
     progress: state.progress,
     showProgress: true,
-    progressStatus: (state.status === 'failed' ? 'exception' : 'normal') as 'normal' | 'exception' | 'success',
+    progressStatus: (state.status === 'failed' ? 'exception' : 'normal') as
+      | 'normal'
+      | 'exception'
+      | 'success',
     successTitle: `${step.title}完成`,
     showMirrorSelection: state.showMirrorSelection, // 所有步骤失败时都显示镜像源选择
     showSkipButton: step.canSkip && state.status === 'failed', // 只有可跳过的步骤且失败时才显示跳过按钮
@@ -141,7 +261,7 @@ const currentStepProps = computed(() => {
     deployProgress: state.deployProgress,
     operationDesc: state.operationDesc,
     checkInfo: state.checkInfo,
-    mirrorProgress: state.mirrorProgress
+    mirrorProgress: state.mirrorProgress,
   }
 })
 
@@ -270,6 +390,15 @@ async function executeStep(stepKey: string): Promise<boolean> {
   state.progress = 0
   state.message = '正在执行...'
 
+  // 非 Electron 环境：跳过安装步骤
+  if (!isElectron && ['python', 'pip', 'git', 'repository', 'dependency'].includes(stepKey)) {
+    logger.info(`Web 模式：跳过 ${stepKey} 步骤`)
+    state.status = 'success'
+    state.progress = 100
+    state.message = '已跳过（Web 模式）'
+    return true
+  }
+
   try {
     let result: any
 
@@ -284,7 +413,10 @@ async function executeStep(stepKey: string): Promise<boolean> {
         result = await (window.electronAPI as any).installGit(state.selectedMirror)
         break
       case 'repository':
-        result = await (window.electronAPI as any).pullRepository(targetBranch.value, state.selectedMirror)
+        result = await (window.electronAPI as any).pullRepository(
+          targetBranch.value,
+          state.selectedMirror
+        )
         break
       case 'dependency':
         result = await (window.electronAPI as any).installDependencies(state.selectedMirror)
@@ -565,11 +697,11 @@ async function loadMirrorConfigs() {
 
     // 并行获取所有镜像源配置
     const [pythonMirrors, getPipMirrors, gitMirrors, repoMirrors, pipMirrors] = await Promise.all([
-      api.getMirrors('python'),      // Python 安装包
-      api.getMirrors('get_pip'),     // get-pip.py 脚本
-      api.getMirrors('git'),         // Git 安装包
-      api.getMirrors('repo'),        // Git 仓库
-      api.getMirrors('pip_mirror'),  // PyPI 镜像源
+      api.getMirrors('python'), // Python 安装包
+      api.getMirrors('get_pip'), // get-pip.py 脚本
+      api.getMirrors('git'), // Git 安装包
+      api.getMirrors('repo'), // Git 仓库
+      api.getMirrors('pip_mirror'), // PyPI 镜像源
     ])
 
     // 转换后端镜像源格式为前端格式
@@ -605,6 +737,17 @@ async function loadMirrorConfigs() {
 
 onMounted(async () => {
   logger.info('初始化界面已加载')
+
+  // Web 模式：跳过所有 Electron 相关初始化，直接进入应用
+  if (!isElectron) {
+    logger.info('Web 模式：跳过 Electron 初始化流程，直接进入应用')
+    markAsInitialized()
+    // 延迟进入应用，让用户看到初始化界面提示
+    setTimeout(() => {
+      enterApp()
+    }, 1000)
+    return
+  }
 
   const api = window.electronAPI as any
 
@@ -643,15 +786,16 @@ onUnmounted(() => {
     countdownTimer = null
   }
 
-  const api = window.electronAPI as any
-
-  // 移除监听器
-  api.removePythonProgressListener?.()
-  api.removePipProgressListener?.()
-  api.removeGitProgressListener?.()
-  api.removeRepositoryProgressListener?.()
-  api.removeDependencyProgressListener?.()
-  api.removeBackendStatusListener?.()
+  // 只在 Electron 环境移除监听器
+  if (isElectron && window.electronAPI) {
+    const api = window.electronAPI as any
+    api.removePythonProgressListener?.()
+    api.removePipProgressListener?.()
+    api.removeGitProgressListener?.()
+    api.removeRepositoryProgressListener?.()
+    api.removeDependencyProgressListener?.()
+    api.removeBackendStatusListener?.()
+  }
 })
 </script>
 
