@@ -1,6 +1,7 @@
 import type { ThemeMode, ThemeColor } from '@/composables/useTheme'
+import { createLogger } from '@/utils/logger'
 
-const logger = window.electronAPI.getLogger('配置管理')
+const logger = createLogger('配置管理')
 
 export interface FrontendConfig {
   // 主题设置
@@ -24,14 +25,7 @@ const DEFAULT_CONFIG: FrontendConfig = {
 // 读取配置（内部使用，不触发保存）
 async function getConfigInternal(): Promise<FrontendConfig> {
   try {
-    // 优先从文件读取配置
-    const fileConfig = await window.electronAPI.loadConfig()
-    if (fileConfig) {
-      logger.info(`从文件加载配置: ${JSON.stringify(fileConfig)}`)
-      return { ...DEFAULT_CONFIG, ...fileConfig }
-    }
-
-    // 如果文件不存在，尝试从localStorage迁移
+    // Web 模式：从 localStorage 读取配置
     const localConfig = localStorage.getItem('app-config')
     const themeConfig = localStorage.getItem('theme-settings')
 
@@ -40,14 +34,14 @@ async function getConfigInternal(): Promise<FrontendConfig> {
     if (localConfig) {
       const parsed = JSON.parse(localConfig)
       config = { ...config, ...parsed }
-      logger.info(`从localStorage迁移配置: ${JSON.stringify(parsed)}`)
+      logger.info(`从localStorage加载配置: ${JSON.stringify(parsed)}`)
     }
 
     if (themeConfig) {
       const parsed = JSON.parse(themeConfig)
       config.themeMode = parsed.themeMode || 'system'
       config.themeColor = parsed.themeColor || 'blue'
-      logger.info(`从localStorage迁移主题配置: ${JSON.stringify(parsed)}`)
+      logger.info(`从localStorage加载主题配置: ${JSON.stringify(parsed)}`)
     }
 
     return config
@@ -60,25 +54,7 @@ async function getConfigInternal(): Promise<FrontendConfig> {
 
 // 读取配置（公共接口）
 export async function getConfig(): Promise<FrontendConfig> {
-  const config = await getConfigInternal()
-
-  // 如果是从localStorage迁移的配置，保存到文件并清理localStorage
-  const hasLocalStorage =
-    localStorage.getItem('app-config') || localStorage.getItem('theme-settings')
-  if (hasLocalStorage) {
-    try {
-      await window.electronAPI.saveConfig(config)
-      localStorage.removeItem('app-config')
-      localStorage.removeItem('theme-settings')
-      localStorage.removeItem('app-initialized')
-      logger.info('配置已从localStorage迁移到文件')
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      logger.error(`迁移配置失败: ${errorMsg}`)
-    }
-  }
-
-  return config
+  return await getConfigInternal()
 }
 
 // 保存配置
@@ -88,8 +64,10 @@ export async function saveConfig(config: Partial<FrontendConfig>): Promise<void>
     const currentConfig = await getConfigInternal() // 使用内部函数避免递归
     const newConfig = { ...currentConfig, ...config }
     logger.info(`合并后的配置: ${JSON.stringify(newConfig)}`)
-    await window.electronAPI.saveConfig(newConfig)
-    logger.info('配置保存成功')
+
+    // Web 模式：保存到 localStorage
+    localStorage.setItem('app-config', JSON.stringify(newConfig))
+    logger.info('配置已保存到localStorage')
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`保存配置失败: ${errorMsg}`)
@@ -100,10 +78,11 @@ export async function saveConfig(config: Partial<FrontendConfig>): Promise<void>
 // 重置配置
 export async function resetConfig(): Promise<void> {
   try {
-    await window.electronAPI.resetConfig()
+    // Web 模式：清除 localStorage
     localStorage.removeItem('app-config')
     localStorage.removeItem('theme-settings')
     localStorage.removeItem('app-initialized')
+    logger.info('配置已重置')
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`重置配置失败: ${errorMsg}`)
