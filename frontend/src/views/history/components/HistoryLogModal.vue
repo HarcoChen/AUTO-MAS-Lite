@@ -144,8 +144,10 @@ import {
   LoadingOutlined,
   SearchOutlined,
 } from '@ant-design/icons-vue'
-import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
-import { computed, ref } from 'vue'
+import { computed, ref, defineAsyncComponent } from 'vue'
+
+// 懒加载 Monaco Editor (最大依赖，3-5MB)
+const VueMonacoEditor = defineAsyncComponent(() => import('@guolao/vue-monaco-editor'))
 
 interface Props {
   open: boolean

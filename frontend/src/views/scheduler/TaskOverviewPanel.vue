@@ -13,7 +13,8 @@
 <script setup lang="ts">
 import { ref, shallowRef } from 'vue'
 import TaskTree from '@/components/TaskTree.vue'
-const logger = window.electronAPI.getLogger('任务总览面板')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('任务总览面板')
 
 interface User {
   user_id: string
@@ -78,7 +79,6 @@ const getScriptStats = (scripts: Script[]) => {
 
 // 处理 WebSocket 消息
 const handleWSMessage = (message: WSMessage) => {
-
   if (message.type === 'Update') {
     // 处理 task_info 数据（完整的脚本和用户数据）
     if (message.data?.task_info && Array.isArray(message.data.task_info)) {

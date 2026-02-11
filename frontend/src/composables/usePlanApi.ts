@@ -4,7 +4,8 @@ import type { PlanCreateIn, PlanDeleteIn, PlanGetIn, PlanReorderIn, PlanUpdateIn
 import { Service } from '@/api'
 import { useAudioPlayer } from '@/composables/useAudioPlayer'
 
-const logger = window.electronAPI.getLogger('计划API')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('计划API')
 
 export function usePlanApi() {
   const loading = ref(false)

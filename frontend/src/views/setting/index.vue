@@ -8,7 +8,8 @@ import type { GlobalConfig } from '@/api'
 import { useSettingsApi } from '@/composables/useSettingsApi'
 import { useUpdateChecker } from '@/composables/useUpdateChecker.ts'
 import { Service, type VersionOut } from '@/api'
-const logger = window.electronAPI.getLogger('设置')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('设置')
 
 // 引入拆分后的 Tab 组件
 import TabBasic from './TabBasic.vue'
@@ -216,11 +217,13 @@ const checkUpdate = async () => {
 
   try {
     await globalCheckUpdate(false, true) // silent=false, forceCheck=true
-    logger.info(`全局更新检查完成，状态: ${JSON.stringify({
-      updateVisible: updateVisible.value,
-      updateData: updateData.value,
-      latestVersion: latestVersion.value,
-    })}`)
+    logger.info(
+      `全局更新检查完成，状态: ${JSON.stringify({
+        updateVisible: updateVisible.value,
+        updateData: updateData.value,
+        latestVersion: latestVersion.value,
+      })}`
+    )
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`全局更新检查失败: ${errorMsg}`)
@@ -270,20 +273,36 @@ onMounted(() => {
     <div class="settings-content">
       <a-tabs v-model:active-key="activeKey" type="card" :loading="loading" class="settings-tabs">
         <a-tab-pane key="basic" tab="界面设置">
-          <TabBasic :settings="settings" :theme-mode="themeMode" :theme-color="themeColor"
-            :theme-mode-options="themeModeOptions" :theme-color-options="themeColorOptions"
-            :handle-theme-mode-change="handleThemeModeChange" :handle-theme-color-change="handleThemeColorChange"
-            :handle-setting-change="handleSettingChange" />
+          <TabBasic
+            :settings="settings"
+            :theme-mode="themeMode"
+            :theme-color="themeColor"
+            :theme-mode-options="themeModeOptions"
+            :theme-color-options="themeColorOptions"
+            :handle-theme-mode-change="handleThemeModeChange"
+            :handle-theme-color-change="handleThemeColorChange"
+            :handle-setting-change="handleSettingChange"
+          />
         </a-tab-pane>
         <a-tab-pane key="function" tab="功能设置">
-          <TabFunction :settings="settings" :history-retention-options="historyRetentionOptions"
-            :update-source-options="updateSourceOptions" :update-channel-options="updateChannelOptions"
-            :voice-type-options="voiceTypeOptions" :handle-setting-change="handleSettingChange"
-            :check-update="checkUpdate" />
+          <TabFunction
+            :settings="settings"
+            :history-retention-options="historyRetentionOptions"
+            :update-source-options="updateSourceOptions"
+            :update-channel-options="updateChannelOptions"
+            :voice-type-options="voiceTypeOptions"
+            :handle-setting-change="handleSettingChange"
+            :check-update="checkUpdate"
+          />
         </a-tab-pane>
         <a-tab-pane key="notify" tab="通知设置">
-          <TabNotify :settings="settings" :send-task-result-time-options="sendTaskResultTimeOptions"
-            :handle-setting-change="handleSettingChange" :test-notify="testNotify" :testing-notify="testingNotify" />
+          <TabNotify
+            :settings="settings"
+            :send-task-result-time-options="sendTaskResultTimeOptions"
+            :handle-setting-change="handleSettingChange"
+            :test-notify="testNotify"
+            :testing-notify="testingNotify"
+          />
         </a-tab-pane>
         <a-tab-pane key="advanced" tab="高级设置">
           <TabAdvanced :open-dev-tools="openDevTools" />

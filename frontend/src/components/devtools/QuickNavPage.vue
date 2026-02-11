@@ -4,8 +4,12 @@
     <div class="debug-section">
       <h4>🎯 手动导航</h4>
       <div class="manual-nav">
-        <input v-model="manualPath" placeholder="输入路径 (例: /home, /scripts)" class="path-input"
-          @keyup.enter="navigateToManualPath" />
+        <input
+          v-model="manualPath"
+          placeholder="输入路径 (例: /home, /scripts)"
+          class="path-input"
+          @keyup.enter="navigateToManualPath"
+        />
         <button class="nav-go-btn" @click="navigateToManualPath">跳转</button>
       </div>
     </div>
@@ -14,8 +18,13 @@
     <div class="debug-section">
       <h4>🚀 快捷导航</h4>
       <div class="quick-nav">
-        <button v-for="route in commonRoutes" :key="route.path" class="nav-btn"
-          :class="{ active: currentRoute.path === route.path }" @click="navigateTo(route.path)">
+        <button
+          v-for="route in commonRoutes"
+          :key="route.path"
+          class="nav-btn"
+          :class="{ active: currentRoute.path === route.path }"
+          @click="navigateTo(route.path)"
+        >
           {{ route.title }}
         </button>
       </div>
@@ -61,7 +70,8 @@
 import { computed, getCurrentInstance, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-const logger = window.electronAPI.getLogger('快速导航页面')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('快速导航页面')
 
 const route = useRoute()
 const router = useRouter()
@@ -110,7 +120,7 @@ const navigateToManualPath = () => {
 const openDevtool = () => {
   try {
     if ((window as any).electronAPI?.openDevTools) {
-      ; (window as any).electronAPI.openDevTools()
+      ;(window as any).electronAPI.openDevTools()
       logger.info('开发者工具已打开')
     } else {
       logger.warn('开发者工具API不可用')

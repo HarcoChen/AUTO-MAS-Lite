@@ -121,6 +121,7 @@ def main():
             logger.info("AUTO-MAS 后端程序关闭")
 
         from fastapi.middleware.cors import CORSMiddleware
+        from fastapi.responses import HTMLResponse
         from app.api import (
             core_router,
             info_router,
@@ -174,6 +175,23 @@ def main():
             StaticFiles(directory=str(Path.cwd() / "res/sounds")),
             name="sounds",
         )
+
+        # 前端静态文件服务 (Web UI)
+        frontend_dist = Path(__file__).resolve().parent / "frontend" / "dist"
+        if frontend_dist.exists():
+            app.mount(
+                "/",
+                StaticFiles(directory=str(frontend_dist), html=True),
+                name="frontend",
+            )
+
+            # Vue Router history mode fallback
+            @app.get("/{path:path}")
+            async def serve_spa(path: str):
+                index_path = frontend_dist / "index.html"
+                if index_path.exists():
+                    return HTMLResponse(content=index_path.read_text(encoding="utf-8"))
+                return HTMLResponse(content="AUTO-MAS Web UI not found", status_code=404)
 
         mcp = FastApiMCP(
             app,

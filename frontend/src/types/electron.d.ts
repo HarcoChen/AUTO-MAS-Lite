@@ -195,6 +195,21 @@ export interface ElectronAPI {
 
 declare global {
   interface Window {
-    electronAPI: ElectronAPI
+    electronAPI?: ElectronAPI & {
+      // Web 兼容的日志方法
+      logInfo?: (prefix: string, msg: string) => void
+      logError?: (prefix: string, msg: string) => void
+      logWarn?: (prefix: string, msg: string) => void
+      logDebug?: (prefix: string, msg: string) => void
+    }
+    __GLOBAL_LOGGER__?: {
+      createLogger: (prefix: string) => {
+        info: (msg: string) => void
+        error: (msg: string) => void
+        warn: (msg: string) => void
+        debug: (msg: string) => void
+      }
+      isElectron: boolean
+    }
   }
 }

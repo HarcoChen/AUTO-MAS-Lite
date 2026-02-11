@@ -4,7 +4,8 @@
 
 // no types needed here to avoid circular/unused imports
 import { useAppClosing } from '@/composables/useAppClosing'
-const logger = window.electronAPI.getLogger('调度器处理器')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('调度器处理器')
 
 const PENDING_TABS_KEY = 'scheduler-pending-tabs'
 const PENDING_COUNTDOWN_KEY = 'scheduler-pending-countdown'

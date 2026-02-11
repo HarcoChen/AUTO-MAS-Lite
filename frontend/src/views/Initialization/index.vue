@@ -741,10 +741,10 @@ onMounted(async () => {
   // Web 模式：跳过所有 Electron 相关初始化，直接进入应用
   if (!isElectron) {
     logger.info('Web 模式：跳过 Electron 初始化流程，直接进入应用')
-    markAsInitialized()
     // 延迟进入应用，让用户看到初始化界面提示
-    setTimeout(() => {
-      enterApp()
+    setTimeout(async () => {
+      logger.info('Web 模式：准备进入应用，跳过 WebSocket 连接...')
+      await forceEnterApp('Web 模式初始化')
     }, 1000)
     return
   }

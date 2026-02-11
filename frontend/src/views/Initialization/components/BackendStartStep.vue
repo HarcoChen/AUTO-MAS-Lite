@@ -39,7 +39,11 @@
 
       <!-- 完成状态 -->
       <div v-else-if="status === 'success'" class="completed-status">
-        <a-result status="success" title="后端启动成功" sub-title="应用已准备就绪，即将进入主界面" />
+        <a-result
+          status="success"
+          title="后端启动成功"
+          sub-title="应用已准备就绪，即将进入主界面"
+        />
       </div>
 
       <!-- 失败状态 -->
@@ -61,7 +65,12 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { connectAfterBackendStart } from '@/composables/useWebSocket'
 import { useUpdateChecker } from '@/composables/useUpdateChecker'
-const logger = window.electronAPI.getLogger('后端启动步骤')
+import { createLogger } from '@/utils/logger'
+
+const logger = createLogger('后端启动步骤')
+
+// 检查是否为 Electron 环境
+const isElectron = typeof window !== 'undefined' && (window as any).electronAPI !== undefined
 
 // ==================== Props & Emits ====================
 interface Props {
@@ -69,14 +78,14 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showSkipButton: false
+  showSkipButton: false,
 })
 
 const emit = defineEmits<{
   'update:status': [status: 'waiting' | 'starting' | 'running' | 'success' | 'failed']
-  'complete': []
-  'error': [error: string]
-  'skip': []
+  complete: []
+  error: [error: string]
+  skip: []
 }>()
 
 // ==================== 状态管理 ====================
@@ -178,13 +187,14 @@ async function startBackend() {
     progressStatus.value = 'success'
 
     // 合并完成信息到一行日志
-    logger.info(`后端服务启动完成 - PID: ${backendPid.value}, WebSocket: ${wsConnected.value ? '已连接' : '未连接'}, 版本检查: ${pollingStarted.value ? '已启动' : '未启动'}`)
+    logger.info(
+      `后端服务启动完成 - PID: ${backendPid.value}, WebSocket: ${wsConnected.value ? '已连接' : '未连接'}, 版本检查: ${pollingStarted.value ? '已启动' : '未启动'}`
+    )
 
     // 延迟1秒后通知完成，让用户看到成功状态
     setTimeout(() => {
       emit('complete')
     }, 1000)
-
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error)
     logger.error(`后端启动失败: ${errMsg}`)
@@ -209,6 +219,20 @@ async function handleRetry() {
 
 // ==================== 生命周期 ====================
 onMounted(() => {
+  // 非 Electron 环境：跳过后端启动步骤
+  if (!isElectron) {
+    logger.info('Web 模式：后端启动步骤已跳过')
+    status.value = 'success'
+    statusMessage.value = 'Web 模式：后端需手动启动'
+    emit('update:status', 'success')
+    progress.value = 100
+    // 延迟发送完成事件
+    setTimeout(() => {
+      emit('complete')
+    }, 1000)
+    return
+  }
+
   const api = window.electronAPI as any
 
   api.onBackendStatus?.((status: any) => {
@@ -222,9 +246,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // 清理监听器
-  const api = window.electronAPI as any
-  api.removeBackendStatusListener?.()
+  // 只在 Electron 环境清理监听器
+  if (isElectron && window.electronAPI) {
+    const api = window.electronAPI as any
+    api.removeBackendStatusListener?.()
+  }
 })
 </script>
 

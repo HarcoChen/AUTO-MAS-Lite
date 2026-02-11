@@ -1,10 +1,21 @@
 <template>
-  <a-modal v-model:open="visible" :title="`发现新版本 ${latestVersion || ''}`" :width="800" :footer="null"
-    :mask-closable="false" :z-index="9999" class="update-modal">
+  <a-modal
+    v-model:open="visible"
+    :title="`发现新版本 ${latestVersion || ''}`"
+    :width="800"
+    :footer="null"
+    :mask-closable="false"
+    :z-index="9999"
+    class="update-modal"
+  >
     <div class="update-container">
       <!-- 更新内容展示 -->
       <div class="update-content">
-        <div ref="markdownContentRef" class="markdown-content" v-html="renderMarkdown(updateContent)"></div>
+        <div
+          ref="markdownContentRef"
+          class="markdown-content"
+          v-html="renderMarkdown(updateContent)"
+        ></div>
       </div>
 
       <!-- 操作按钮 -->
@@ -18,16 +29,22 @@
   </a-modal>
 
   <!-- 独立的下载窗口 -->
-  <UpdateDownloadModal v-model:visible="showDownloadModal" :latest-version="latestVersion" :update-data="updateData"
-    @completed="handleDownloadCompleted" @cancelled="handleDownloadCancelled"
-    @install-requested="handleInstallRequested" />
+  <UpdateDownloadModal
+    v-model:visible="showDownloadModal"
+    :latest-version="latestVersion"
+    :update-data="updateData"
+    @completed="handleDownloadCompleted"
+    @cancelled="handleDownloadCancelled"
+    @install-requested="handleInstallRequested"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import MarkdownIt from 'markdown-it'
 import UpdateDownloadModal from './UpdateDownloadModal.vue'
-const logger = window.electronAPI.getLogger('更新模态框')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('更新模态框')
 
 // Props 定义
 interface Props {
@@ -118,11 +135,13 @@ if (props.updateData && Object.keys(props.updateData).length > 0) {
 // 处理下载按钮点击
 const handleDownload = () => {
   logger.info('点击下载按钮')
-  logger.info(`当前props: ${JSON.stringify({
-    updateData: props.updateData,
-    latestVersion: props.latestVersion,
-    visible: props.visible,
-  })}`)
+  logger.info(
+    `当前props: ${JSON.stringify({
+      updateData: props.updateData,
+      latestVersion: props.latestVersion,
+      visible: props.visible,
+    })}`
+  )
   // 关闭当前窗口，显示下载窗口
   visible.value = false
   showDownloadModal.value = true

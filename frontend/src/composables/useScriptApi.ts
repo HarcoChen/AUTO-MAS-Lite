@@ -4,7 +4,8 @@ import { type GeneralConfig, type MaaConfig, ScriptCreateIn, type ScriptReorderI
 import type { ScriptDetail, ScriptType } from '@/types/script'
 import { useAudioPlayer } from '@/composables/useAudioPlayer'
 
-const logger = window.electronAPI.getLogger('脚本API')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('脚本API')
 
 export function useScriptApi() {
   const loading = ref(false)

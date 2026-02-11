@@ -4,7 +4,8 @@ import { message } from 'ant-design-vue'
 import { DownloadOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
 import { useTheme } from '@/composables/useTheme'
-const logger = window.electronAPI.getLogger('日志查看')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('日志查看')
 const { themeMode } = useTheme()
 
 const props = defineProps<{
@@ -15,7 +16,7 @@ const { openDevTools } = props
 
 // 打开日志窗口
 const openLogWindow = () => {
-  (window as any).electronAPI?.openLogWindow?.()
+  ;(window as any).electronAPI?.openLogWindow?.()
 }
 
 // 日志显示模式类型
@@ -225,23 +226,36 @@ onUnmounted(() => {
         <h3>日志查看</h3>
         <div class="header-controls">
           <a-space :size="8" wrap>
-            <a-radio-group v-model:value="selectedLogFile" button-style="solid" size="small" @change="onLogFileChange">
+            <a-radio-group
+              v-model:value="selectedLogFile"
+              button-style="solid"
+              size="small"
+              @change="onLogFileChange"
+            >
               <a-radio-button value="app">后端日志</a-radio-button>
               <a-radio-button value="frontend">前端日志</a-radio-button>
             </a-radio-group>
 
-            <a-button :type="logMode === 'follow' ? 'primary' : 'default'" size="small" @click="toggleLogMode">
+            <a-button
+              :type="logMode === 'follow' ? 'primary' : 'default'"
+              size="small"
+              @click="toggleLogMode"
+            >
               {{ logMode === 'follow' ? '保持最新' : '自由浏览' }}
             </a-button>
 
-            <a-button :type="realTimeEnabled ? 'primary' : 'default'" size="small" @click="toggleRealTime">
+            <a-button
+              :type="realTimeEnabled ? 'primary' : 'default'"
+              size="small"
+              @click="toggleRealTime"
+            >
               <template #icon>
                 <SyncOutlined :spin="realTimeEnabled" />
               </template>
               {{ realTimeEnabled ? '自动更新' : '停止更新' }}
             </a-button>
 
-            <a-button @click="exportLogsZip" :loading="exporting" type="primary" size="small">
+            <a-button :loading="exporting" type="primary" size="small" @click="exportLogsZip">
               <template #icon>
                 <DownloadOutlined />
               </template>
@@ -253,8 +267,14 @@ onUnmounted(() => {
 
       <a-spin :spinning="loading" tip="加载日志中...">
         <div class="editor-container" :class="{ 'log-locked': logMode === 'follow' }">
-          <vue-monaco-editor v-model:value="logs" language="log" :theme="editorTheme" :options="editorOptions"
-            class="log-editor" @mount="handleEditorMount" />
+          <vue-monaco-editor
+            v-model:value="logs"
+            language="log"
+            :theme="editorTheme"
+            :options="editorOptions"
+            class="log-editor"
+            @mount="handleEditorMount"
+          />
         </div>
       </a-spin>
     </div>

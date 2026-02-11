@@ -4,8 +4,9 @@ import { connectAfterBackendStart, forceConnectWebSocket } from '@/composables/u
 import { startTitlebarVersionCheck } from '@/composables/useVersionService'
 import { useUpdateChecker } from '@/composables/useUpdateChecker'
 import { markAsInitialized } from '@/composables/useAppInitialization'
+import { createLogger } from '@/utils/logger'
 
-const logger = window.electronAPI.getLogger('应用入口')
+const logger = createLogger('应用入口')
 
 // 标记版本服务是否已启动，避免重复启动
 let versionServicesStarted = false

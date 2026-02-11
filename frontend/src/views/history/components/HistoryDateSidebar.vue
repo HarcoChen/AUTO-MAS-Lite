@@ -237,8 +237,6 @@ const handleCollapseChange = (keys: string | string[]) => {
   font-size: 13px;
   color: var(--ant-color-text-secondary);
 }
-
-
 </style>
 
 <style>

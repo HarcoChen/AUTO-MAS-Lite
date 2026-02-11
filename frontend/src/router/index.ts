@@ -1,6 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAppInitialization } from '@/composables/useAppInitialization'
-const logger = window.electronAPI.getLogger('路由管理')
+
+// Web 兼容的日志系统
+const isElectron = typeof window !== 'undefined' && (window as any).electronAPI !== undefined
+const createWebLogger = (prefix: string) => ({
+  info: (msg: string) => isElectron ? (window as any).electronAPI.logInfo(prefix, msg) : console.log(`[${prefix}] ${msg}`),
+  error: (msg: string) => isElectron ? (window as any).electronAPI.logError(prefix, msg) : console.error(`[${prefix}] ${msg}`),
+  warn: (msg: string) => isElectron ? (window as any).electronAPI.logWarn(prefix, msg) : console.warn(`[${prefix}] ${msg}`),
+})
+const logger = createWebLogger('路由管理')
 
 // 异步按需加载调度中心，避免弹窗窗口提前执行相关逻辑
 const SchedulerView = () => import('../views/scheduler/index.vue')

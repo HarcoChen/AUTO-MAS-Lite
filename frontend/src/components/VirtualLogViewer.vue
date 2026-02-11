@@ -4,22 +4,37 @@
     <div class="log-toolbar">
       <div class="toolbar-left">
         <a-space>
-          <a-select v-model:value="selectedLogLevel" style="width: 120px" placeholder="日志级别" @change="onLogLevelChange">
+          <a-select
+            v-model:value="selectedLogLevel"
+            style="width: 120px"
+            placeholder="日志级别"
+            @change="onLogLevelChange"
+          >
             <a-select-option value="">全部级别</a-select-option>
             <a-select-option v-for="level in logLevels" :key="level" :value="level">
               {{ level }}
             </a-select-option>
           </a-select>
 
-          <a-select v-model:value="selectedSource" style="width: 120px" placeholder="日志来源" @change="onSourceChange">
+          <a-select
+            v-model:value="selectedSource"
+            style="width: 120px"
+            placeholder="日志来源"
+            @change="onSourceChange"
+          >
             <a-select-option value="">全部来源</a-select-option>
             <a-select-option v-for="source in logSources" :key="source" :value="source">
               {{ source }}
             </a-select-option>
           </a-select>
 
-          <a-input v-model:value="searchKeyword" style="width: 200px" placeholder="搜索关键词" @input="onSearchInput"
-            allow-clear>
+          <a-input
+            v-model:value="searchKeyword"
+            style="width: 200px"
+            placeholder="搜索关键词"
+            allow-clear
+            @input="onSearchInput"
+          >
             <template #prefix>
               <SearchOutlined />
             </template>
@@ -37,21 +52,21 @@
 
       <div class="toolbar-right">
         <a-space>
-          <a-button @click="exportLogs" :loading="exporting">
+          <a-button :loading="exporting" @click="exportLogs">
             <template #icon>
               <ExportOutlined />
             </template>
             导出
           </a-button>
 
-          <a-button @click="clearLogs" danger>
+          <a-button danger @click="clearLogs">
             <template #icon>
               <DeleteOutlined />
             </template>
             清空
           </a-button>
 
-          <a-button @click="refreshLogs" :loading="refreshing">
+          <a-button :loading="refreshing" @click="refreshLogs">
             <template #icon>
               <ReloadOutlined />
             </template>
@@ -62,16 +77,25 @@
     </div>
 
     <!-- 虚拟滚动日志列表 -->
-    <div class="log-container" ref="containerRef" @scroll="onScroll">
+    <div ref="containerRef" class="log-container" @scroll="onScroll">
       <div class="log-phantom" :style="{ height: `${totalHeight}px` }"></div>
       <div class="log-content" :style="{ transform: `translateY(${offsetY}px)` }">
-        <div v-for="(log, index) in visibleLogs" :key="`${log.timestamp.getTime()}-${index}`" class="log-item" :class="[
-          `log-level-${log.level.toLowerCase()}`,
-          { 'log-item-selected': selectedLogIndex === index }
-        ]" @click="selectLog(index)" @dblclick="onLogDoubleClick(index)">
+        <div
+          v-for="(log, index) in visibleLogs"
+          :key="`${log.timestamp.getTime()}-${index}`"
+          class="log-item"
+          :class="[
+            `log-level-${log.level.toLowerCase()}`,
+            { 'log-item-selected': selectedLogIndex === index },
+          ]"
+          @click="selectLog(index)"
+          @dblclick="onLogDoubleClick(index)"
+        >
           <div class="log-time">{{ formatTime(log.timestamp) }}</div>
           <div class="log-level" :style="getLevelStyle(log.level)">{{ log.level }}</div>
-          <div class="log-module" :style="getModuleStyle(log.module, log.source)">{{ log.module }}</div>
+          <div class="log-module" :style="getModuleStyle(log.module, log.source)">
+            {{ log.module }}
+          </div>
           <div class="log-message" v-html="highlightSearchKeyword(log.message)"></div>
         </div>
       </div>
@@ -99,7 +123,8 @@
         </div>
         <div class="detail-row">
           <span class="detail-label">级别:</span>
-          <span class="detail-value" :style="getLevelStyle(selectedLogForDetail.level)">{{ selectedLogForDetail.level
+          <span class="detail-value" :style="getLevelStyle(selectedLogForDetail.level)">{{
+            selectedLogForDetail.level
           }}</span>
         </div>
         <div class="detail-row">
@@ -108,9 +133,11 @@
         </div>
         <div class="detail-row">
           <span class="detail-label">模块:</span>
-          <span class="detail-value"
-            :style="getModuleStyle(selectedLogForDetail.module, selectedLogForDetail.source)">{{
-              selectedLogForDetail.module }}</span>
+          <span
+            class="detail-value"
+            :style="getModuleStyle(selectedLogForDetail.module, selectedLogForDetail.source)"
+            >{{ selectedLogForDetail.module }}</span
+          >
         </div>
         <div class="detail-row">
           <span class="detail-label">消息:</span>
@@ -122,7 +149,9 @@
         </div>
         <div v-if="selectedLogForDetail.metadata" class="detail-row">
           <span class="detail-label">元数据:</span>
-          <pre class="detail-metadata">{{ JSON.stringify(selectedLogForDetail.metadata, null, 2) }}</pre>
+          <pre class="detail-metadata">{{
+            JSON.stringify(selectedLogForDetail.metadata, null, 2)
+          }}</pre>
         </div>
       </div>
     </a-modal>
@@ -136,7 +165,7 @@ import {
   SearchOutlined,
   ExportOutlined,
   DeleteOutlined,
-  ReloadOutlined
+  ReloadOutlined,
 } from '@ant-design/icons-vue'
 import type { ParsedLogEntry } from '@/types/log'
 import { LogLevel, LogSource } from '@/types/log'
@@ -158,14 +187,14 @@ const props = withDefaults(defineProps<Props>(), {
   error: '',
   itemHeight: 30,
   bufferSize: 5,
-  enableVirtualScroll: true
+  enableVirtualScroll: true,
 })
 
 // Emits
 const emit = defineEmits<{
-  'refresh': []
-  'clear': []
-  'export': [logs: ParsedLogEntry[]]
+  refresh: []
+  clear: []
+  export: [logs: ParsedLogEntry[]]
   'log-selected': [log: ParsedLogEntry, index: number]
 }>()
 
@@ -196,12 +225,16 @@ const logSources = Object.values(LogSource)
 const internalLogs = ref<ParsedLogEntry[]>([])
 
 // 监听外部日志变化
-watch(() => props.logs, (newLogs) => {
-  internalLogs.value = [...newLogs]
-  if (autoScroll.value) {
-    scrollToBottom()
-  }
-}, { immediate: true, deep: true })
+watch(
+  () => props.logs,
+  newLogs => {
+    internalLogs.value = [...newLogs]
+    if (autoScroll.value) {
+      scrollToBottom()
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 // 计算属性
 const filteredLogs = computed(() => {
@@ -220,10 +253,11 @@ const filteredLogs = computed(() => {
   // 按关键词搜索
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(log =>
-      log.message.toLowerCase().includes(keyword) ||
-      log.module.toLowerCase().includes(keyword) ||
-      log.level.toLowerCase().includes(keyword)
+    result = result.filter(
+      log =>
+        log.message.toLowerCase().includes(keyword) ||
+        log.module.toLowerCase().includes(keyword) ||
+        log.level.toLowerCase().includes(keyword)
     )
   }
 
@@ -439,7 +473,7 @@ defineExpose({
   scrollToBottom,
   resetVirtualScroll,
   selectLog,
-  showLogDetail
+  showLogDetail,
 })
 </script>
 

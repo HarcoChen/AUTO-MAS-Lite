@@ -35,12 +35,17 @@ router = APIRouter(prefix="/api/core", tags=["核心信息"])
 
 @router.websocket("/ws")
 async def connect_websocket(websocket: WebSocket):
+    # 获取客户端来源
+    headers = dict(websocket.headers)
+    origin = headers.get("origin", "*")
+
+    # 接受所有来源的连接
+    await websocket.accept(subprotocol=None)
 
     if Config.websocket is not None:
         await websocket.close(code=1000, reason="已有连接")
         return
 
-    await websocket.accept()
     Config.websocket = websocket
     last_pong = time.monotonic()
     last_ping = time.monotonic()

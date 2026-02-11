@@ -2,7 +2,14 @@ import { ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useSettingsApi } from '@/composables/useSettingsApi'
 import { OpenAPI } from '@/api'
-const logger = window.electronAPI.getLogger('音频播放器')
+
+// Web 兼容的日志系统
+const createLogger = (prefix: string) => ({
+  info: (msg: string) => console.log(`[${prefix}] ${msg}`),
+  error: (msg: string) => console.error(`[${prefix}] ${msg}`),
+  warn: (msg: string) => console.warn(`[${prefix}] ${msg}`),
+})
+const logger = createLogger('音频播放器')
 
 export function useAudioPlayer() {
   const { getSettings } = useSettingsApi()

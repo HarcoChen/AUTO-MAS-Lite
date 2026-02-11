@@ -13,7 +13,7 @@
             :disabled="disabled"
             size="large"
             @change="onTaskChange"
-            @dropdownVisibleChange="onDropdownVisibleChange"
+            @dropdown-visible-change="onDropdownVisibleChange"
           />
           <a-select
             v-if="status !== '运行'"
@@ -123,7 +123,7 @@ const modeOptions = TASK_MODE_OPTIONS
 // 监听状态变化，记录运行时的文本信息
 watch(
   () => props.status,
-  (newStatus) => {
+  newStatus => {
     if (newStatus === '运行') {
       const taskOption = props.taskOptions.find(opt => opt.value === props.selectedTaskId)
       const taskLabel = taskOption?.label || props.selectedTaskId || ''
@@ -135,7 +135,6 @@ watch(
     }
   }
 )
-
 
 // 监听 props 变化，同步到本地状态
 watch(

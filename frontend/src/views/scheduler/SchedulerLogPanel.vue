@@ -4,7 +4,11 @@
       <h3>日志</h3>
       <div class="log-controls">
         <a-space size="small">
-          <a-button size="small" :type="logMode === 'follow' ? 'primary' : 'default'" @click="toggleLogMode">
+          <a-button
+            size="small"
+            :type="logMode === 'follow' ? 'primary' : 'default'"
+            @click="toggleLogMode"
+          >
             {{ logMode === 'follow' ? '保持最新' : '自由浏览' }}
           </a-button>
         </a-space>
@@ -19,8 +23,14 @@
         </div>
       </div>
       <div v-else class="monaco-container">
-        <vue-monaco-editor :value="logContent" language="logfile" :theme="editorTheme" :options="editorOptions"
-          @before-mount="handleBeforeMount" @mount="handleEditorMount" />
+        <vue-monaco-editor
+          :value="logContent"
+          language="logfile"
+          :theme="editorTheme"
+          :options="editorOptions"
+          @before-mount="handleBeforeMount"
+          @mount="handleEditorMount"
+        />
       </div>
     </div>
   </div>
@@ -67,7 +77,7 @@ const logMode = ref<LogMode>('follow')
 // 监听外部控制的日志模式变化
 watch(
   () => props.externalLogMode,
-  (newMode) => {
+  newMode => {
     if (newMode && logMode.value !== newMode) {
       logMode.value = newMode
       if (newMode === 'follow') {

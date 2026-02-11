@@ -16,13 +16,21 @@
 
       <!-- 控制按钮 -->
       <div class="action-buttons">
-        <button :disabled="isLoading || isBackendRunning" class="action-btn start-btn" @click="startBackend">
+        <button
+          :disabled="isLoading || isBackendRunning"
+          class="action-btn start-btn"
+          @click="startBackend"
+        >
           <span v-if="isLoading" class="loading-spinner">⏳</span>
           <span v-else>▶️</span>
           启动后端
         </button>
 
-        <button :disabled="isLoading || !isBackendRunning" class="action-btn stop-btn" @click="stopBackend">
+        <button
+          :disabled="isLoading || !isBackendRunning"
+          class="action-btn stop-btn"
+          @click="stopBackend"
+        >
           <span v-if="isLoading" class="loading-spinner">⏳</span>
           <span v-else>⏹️</span>
           停止后端
@@ -36,7 +44,11 @@
       </div>
 
       <!-- 操作结果显示 -->
-      <div v-if="lastResult" class="result-card" :class="{ success: lastResult.success, error: !lastResult.success }">
+      <div
+        v-if="lastResult"
+        class="result-card"
+        :class="{ success: lastResult.success, error: !lastResult.success }"
+      >
         <div class="result-title">
           {{ lastResult.success ? '操作成功' : '❌ 操作失败' }}
         </div>
@@ -134,15 +146,21 @@
 
       <!-- WebSocket控制按钮 -->
       <div class="ws-actions">
-        <button :disabled="isWsReconnecting || connectionInfo.isAutoReconnecting" class="action-btn reconnect-btn"
-          @click="handleManualReconnect">
+        <button
+          :disabled="isWsReconnecting || connectionInfo.isAutoReconnecting"
+          class="action-btn reconnect-btn"
+          @click="handleManualReconnect"
+        >
           <span v-if="isWsReconnecting" class="loading-spinner">⏳</span>
           <span v-else>🔄</span>
           {{ isWsReconnecting ? '重连中...' : '手动重连' }}
         </button>
 
-        <button :disabled="connectionInfo.isAutoReconnecting" class="action-btn reset-btn"
-          @click="handleResetReconnect">
+        <button
+          :disabled="connectionInfo.isAutoReconnecting"
+          class="action-btn reset-btn"
+          @click="handleResetReconnect"
+        >
           🔧 重置重连状态
         </button>
 
@@ -193,7 +211,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useWebSocket, type WebSocketBaseMessage } from '@/composables/useWebSocket'
 
-const logger = window.electronAPI.getLogger('后端调试面板')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('后端调试面板')
 
 // 临时的类型断言，确保能访问到完整的electronAPI
 const electronAPI = (window as any).electronAPI
@@ -255,7 +274,6 @@ const updateWsStatus = () => {
 
 // 处理WebSocket消息
 const handleWsMessage = (message: WebSocketBaseMessage) => {
-
   // 添加到消息列表
   wsMessages.value.unshift({
     timestamp: new Date().toLocaleTimeString(),

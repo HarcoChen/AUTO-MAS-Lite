@@ -16,7 +16,8 @@ import WebSocketMessageListener from './components/WebSocketMessageListener.vue'
 import AppClosingOverlay from './components/AppClosingOverlay.vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 
-const logger = window.electronAPI.getLogger('App组件')
+import { createLogger } from '@/utils/logger'
+const logger = createLogger('App组件')
 
 const route = useRoute()
 const { antdTheme, initTheme } = useTheme()
@@ -47,7 +48,9 @@ onMounted(async () => {
     logger.info('准备播放欢迎音频')
     await playSound('welcome_back')
   } else {
-    logger.info(`跳过欢迎音频播放, 原因: ${isInitializationPage.value ? '当前是初始化页面' : '应用未初始化'}`)
+    logger.info(
+      `跳过欢迎音频播放, 原因: ${isInitializationPage.value ? '当前是初始化页面' : '应用未初始化'}`
+    )
   }
 })
 </script>
@@ -77,8 +80,12 @@ onMounted(async () => {
     <!-- 以下组件仅在初始化完成后挂载 -->
     <template v-if="isInitialized">
       <!-- 全局更新模态框 -->
-      <UpdateModal v-model:visible="updateVisible" :update-data="updateData" :latest-version="latestVersion"
-        @confirmed="onUpdateConfirmed" />
+      <UpdateModal
+        v-model:visible="updateVisible"
+        :update-data="updateData"
+        :latest-version="latestVersion"
+        @confirmed="onUpdateConfirmed"
+      />
 
       <!-- 全局电源倒计时弹窗 -->
       <GlobalPowerCountdown />
@@ -120,7 +127,6 @@ onMounted(async () => {
   -ms-overflow-style: none;
   /* IE/Edge */
 }
-
 
 .standalone-container {
   height: 100vh;

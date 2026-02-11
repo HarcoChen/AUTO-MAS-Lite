@@ -4,8 +4,9 @@ import { useLogHighlight } from '@/composables/useLogHighlight'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { createLogger } from '@/utils/logger'
 
-const logger = window.electronAPI.getLogger('历史记录')
+const logger = createLogger('历史记录')
 
 // 历史记录日期分组接口
 export interface HistoryDateGroup {

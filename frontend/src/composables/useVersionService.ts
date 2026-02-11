@@ -7,7 +7,9 @@
 
 import { ref } from 'vue'
 import { Service, type UpdateCheckOut, type VersionOut } from '@/api'
-const logger = window.electronAPI.getLogger('版本服务')
+import { createLogger } from '@/utils/logger'
+
+const logger = createLogger('版本服务')
 
 // 获取版本号
 const version = (import.meta as any).env.VITE_APP_VERSION || '1.0.0'
