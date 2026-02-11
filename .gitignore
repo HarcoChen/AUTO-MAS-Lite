@@ -26,3 +26,9 @@ uv.lock
 /debug/
 /history/
 /script/
+
+.claude/
+*-AI/
+# Exception: track docs-AI for web migration documentation
+!docs-AI/
+!docs-AI/**
