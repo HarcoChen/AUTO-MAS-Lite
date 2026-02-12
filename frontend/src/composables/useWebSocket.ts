@@ -8,14 +8,19 @@ import { createLogger } from '@/utils/logger'
 const logger = createLogger('WebSocket连接')
 
 // ====== 配置项 ======
+// 检测是否是 Web 模式（刷新页面不应关闭后端）
+const hasRealElectronAPI = typeof window !== 'undefined' && window.electronAPI !== undefined && 'installPython' in (window as any).electronAPI
+const isWebMode = !hasRealElectronAPI
+const WEB_MODE_PARAM = isWebMode ? '?webMode=true' : ''
+
 // 动态获取 WebSocket 端点
-let BASE_WS_URL = 'ws://localhost:36163/api/core/ws'
+let BASE_WS_URL = `ws://localhost:36163/api/core/ws${WEB_MODE_PARAM}`
 
 // 从 Electron 获取实际端点
 if (window.electronAPI?.getApiEndpoint) {
   window.electronAPI.getApiEndpoint('websocket')
     .then(endpoint => {
-      BASE_WS_URL = `${endpoint}/api/core/ws`
+      BASE_WS_URL = `${endpoint}/api/core/ws${WEB_MODE_PARAM}`
       logger.info(`WebSocket 端点已更新: ${BASE_WS_URL}`)
     })
     .catch(error => {

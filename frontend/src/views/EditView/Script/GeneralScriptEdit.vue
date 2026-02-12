@@ -884,8 +884,10 @@ import {
 } from '@ant-design/icons-vue'
 import LogTimestampSelector from '@/components/LogTimestampSelector.vue'
 import { createLogger } from '@/utils/logger'
+import { useFileSelection } from '../../../composables/useFileSelection.ts'
 
 const logger = createLogger('通用脚本编辑')
+const { selectFolder, selectFile } = useFileSelection()
 
 const route = useRoute()
 const router = useRouter()
@@ -1616,12 +1618,7 @@ const handleGameTypeChange = async (gameType: string) => {
 
 const selectRootPath = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
-    const path = await (window.electronAPI as any).selectFolder()
+    const path = await selectFolder()
     if (path) {
       // 保存当前根目录，用于比较
       const oldRootPath = generalConfig.Info.RootPath
@@ -1690,12 +1687,7 @@ const selectRootPath = async () => {
 
 const selectGamePath = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
-    const paths = await (window.electronAPI as any).selectFile([
+    const paths = await selectFile([
       { name: '可执行文件', extensions: ['exe'] },
       { name: '所有文件', extensions: ['*'] },
     ])
@@ -1714,12 +1706,7 @@ const selectGamePath = async () => {
 
 const selectScriptPath = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
-    const paths = await (window.electronAPI as any).selectFile([
+    const paths = await selectFile([
       { name: '可执行文件', extensions: ['exe', 'bat'] },
       { name: '所有文件', extensions: ['*'] },
     ])
@@ -1745,12 +1732,7 @@ const selectScriptPath = async () => {
 
 const selectTrackProcessExe = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
-    const paths = await (window.electronAPI as any).selectFile([
+    const paths = await selectFile([
       { name: '可执行文件', extensions: ['exe'] },
       { name: '所有文件', extensions: ['*'] },
     ])
@@ -1774,21 +1756,16 @@ const selectTrackProcessExe = async () => {
 
 const selectConfigPath = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
     let selectedPath: string | undefined
 
     // 根据配置文件类型选择不同的选择方式
     if (generalConfig.Script.ConfigPathMode === 'Folder') {
       // 选择文件夹
-      selectedPath = await (window.electronAPI as any).selectFolder()
+      selectedPath = await selectFolder()
       selectedPath = selectedPath || undefined
     } else {
       // 选择文件（默认行为）
-      const paths = await (window.electronAPI as any).selectFile([
+      const paths = await selectFile([
         { name: '配置文件', extensions: ['json', 'yaml', 'yml', 'ini', 'conf', 'toml'] },
         { name: 'JSON 文件', extensions: ['json'] },
         { name: 'YAML 文件', extensions: ['yaml', 'yml'] },
@@ -1822,12 +1799,10 @@ const selectConfigPath = async () => {
 
 const selectLogPath = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
-    const paths = await (window.electronAPI as any).selectFile()
+    const paths = await selectFile([
+      { name: '日志文件', extensions: ['log', 'txt'] },
+      { name: '所有文件', extensions: ['*'] },
+    ])
     if (paths && paths.length > 0) {
       const path = paths[0]
       // 验证路径是否在根目录下

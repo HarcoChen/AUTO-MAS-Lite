@@ -18,8 +18,10 @@ import {
 import type { EmulatorConfigIndexItem, EmulatorSearchResult } from '@/api'
 import { Service } from '@/api'
 import { createLogger } from '@/utils/logger'
+import { useFileSelection } from '@/composables/useFileSelection'
 
 const logger = createLogger('模拟器管理')
+const { selectFile } = useFileSelection()
 
 // 编辑数据接口
 interface EmulatorInfo {
@@ -602,16 +604,11 @@ const showEmulator = async (uuid: string, index: string) => {
 // 路径选择
 const selectEmulatorPath = async (uuid: string) => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用,请在 Electron 环境中运行')
-      return
-    }
-
     const editData = editingDataMap.value.get(uuid)
     if (!editData) return
 
     // 选择任意文件
-    const paths = await (window.electronAPI as any).selectFile([
+    const paths = await selectFile([
       { name: '所有文件', extensions: ['*'] },
     ])
 

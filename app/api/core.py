@@ -38,6 +38,11 @@ async def connect_websocket(websocket: WebSocket):
     # 获取客户端来源
     headers = dict(websocket.headers)
     origin = headers.get("origin", "*")
+    # 检查是否是 Web 模式（刷新页面不应关闭后端），从查询参数或请求头读取
+    is_web_mode = (
+        websocket.query_params.get("webMode", "").lower() == "true"
+        or headers.get("x-web-mode", "false").lower() == "true"
+    )
 
     # 接受所有来源的连接
     await websocket.accept(subprotocol=None)
@@ -85,7 +90,9 @@ async def connect_websocket(websocket: WebSocket):
             break
 
     Config.websocket = None
-    await System.set_power("KillSelf", from_frontend=True)
+    # Web 模式下刷新页面不应关闭后端
+    if not is_web_mode:
+        await System.set_power("KillSelf", from_frontend=True)
 
 
 @ws_command("core.close")

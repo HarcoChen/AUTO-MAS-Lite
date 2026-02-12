@@ -59,7 +59,13 @@ const isElectron = hasRealElectronAPI
 
 ### In Progress 🔄
 - File selection integration in components (GeneralScriptEdit, MAAScriptEdit, etc.)
-- Backend file upload API endpoint
+- Backend path management API ✅ (completed)
+
+### Completed ✅ (Feb 11)
+- **POST /api/path/validate** - 验证路径有效性（存在、可读、类型）
+- **POST /api/path/read** - 读取路径内容（文件内容或目录列表）
+- **GET /api/path/system** - 获取常用系统路径列表
+- **useFileSelection.ts** - 更新为完整路径管理组件
 
 ### Planned for Cleanup 🗑️
 - Remove Electron IPC calls from remaining components

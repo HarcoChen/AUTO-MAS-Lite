@@ -383,8 +383,10 @@ import { Service } from '@/api'
 import { TaskCreateIn } from '@/api/models/TaskCreateIn.ts'
 import WebhookManager from '@/components/WebhookManager.vue'
 import { createLogger } from '@/utils/logger'
+import { useFileSelection } from '../../../composables/useFileSelection.ts'
 
 const logger = createLogger('通用用户编辑')
+const { selectFile } = useFileSelection()
 
 const router = useRouter()
 const route = useRoute()
@@ -810,16 +812,16 @@ const handleSaveGeneralConfig = async () => {
 // 文件选择方法
 const selectScriptBeforeTask = async () => {
   try {
-    const path = await window.electronAPI?.selectFile([
+    const paths = await selectFile([
       { name: '可执行文件', extensions: ['exe', 'bat', 'cmd', 'ps1'] },
       { name: '脚本文件', extensions: ['py', 'js', 'sh'] },
       { name: '所有文件', extensions: ['*'] },
     ])
 
-    if (path && path.length > 0) {
-      formData.Info.ScriptBeforeTask = path[0]
+    if (paths && paths.length > 0) {
+      formData.Info.ScriptBeforeTask = paths[0]
       message.success('任务前脚本路径选择成功')
-      await handleFieldSave('Info.ScriptBeforeTask', path[0])
+      await handleFieldSave('Info.ScriptBeforeTask', paths[0])
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -830,16 +832,16 @@ const selectScriptBeforeTask = async () => {
 
 const selectScriptAfterTask = async () => {
   try {
-    const path = await window.electronAPI?.selectFile([
+    const paths = await selectFile([
       { name: '可执行文件', extensions: ['exe', 'bat', 'cmd', 'ps1'] },
       { name: '脚本文件', extensions: ['py', 'js', 'sh'] },
       { name: '所有文件', extensions: ['*'] },
     ])
 
-    if (path && path.length > 0) {
-      formData.Info.ScriptAfterTask = path[0]
+    if (paths && paths.length > 0) {
+      formData.Info.ScriptAfterTask = paths[0]
       message.success('任务后脚本路径选择成功')
-      await handleFieldSave('Info.ScriptAfterTask', path[0])
+      await handleFieldSave('Info.ScriptAfterTask', paths[0])
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)

@@ -335,8 +335,10 @@ import {
   QuestionCircleOutlined,
 } from '@ant-design/icons-vue'
 import { createLogger } from '@/utils/logger'
+import { useFileSelection } from '../../../composables/useFileSelection.ts'
 
 const logger = createLogger('MAA脚本编辑')
+const { selectFolder } = useFileSelection()
 
 const route = useRoute()
 const router = useRouter()
@@ -567,12 +569,7 @@ const handleEmulatorSelectChange = async (emulatorId: string) => {
 // 文件选择方法
 const selectMAAPath = async () => {
   try {
-    if (!window.electronAPI) {
-      message.error('文件选择功能不可用，请在 Electron 环境中运行')
-      return
-    }
-
-    const path = await (window.electronAPI as any).selectFolder()
+    const path = await selectFolder()
     if (path) {
       maaConfig.Info.Path = path
       // 选择路径后立即保存
