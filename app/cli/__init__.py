@@ -1,0 +1,2 @@
+"""AUTO-MAS CLI package."""
+
