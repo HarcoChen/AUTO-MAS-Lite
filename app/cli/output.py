@@ -11,3 +11,8 @@ def print_json(data: Any) -> None:
 def print_kv(title: str, value: str) -> None:
     print(f"{title}: {value}")
 
+
+def print_rows(header: str, rows: list[str]) -> None:
+    print(header)
+    for row in rows:
+        print(row)
