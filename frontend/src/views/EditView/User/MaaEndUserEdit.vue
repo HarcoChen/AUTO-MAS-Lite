@@ -53,7 +53,13 @@
             @save="handleFieldSave"
           />
           <TaskConfigSection :form-data="formData" @save="handleFieldSave" />
-          <SkylandConfigSection :form-data="formData" :loading="loading" @save="handleFieldSave" />
+          <a-alert
+            type="info"
+            show-icon
+            message="森空岛签到已迁移到工具页统一管理"
+            description="请前往“工具 → 签到管理”编辑该用户的签到开关与 Token。"
+            style="margin-bottom: 20px;"
+          />
           <NotifyConfigSection
             :form-data="formData"
             :loading="loading"
@@ -82,7 +88,6 @@ import { TaskCreateIn } from '@/api/models/TaskCreateIn'
 import MaaEndUserEditHeader from '../../MaaEndUserEdit/MaaEndUserEditHeader.vue'
 import BasicInfoSection from '../../MaaEndUserEdit/BasicInfoSection.vue'
 import TaskConfigSection from '../../MaaEndUserEdit/TaskConfigSection.vue'
-import SkylandConfigSection from '../../MaaEndUserEdit/SkylandConfigSection.vue'
 import NotifyConfigSection from '../../MaaEndUserEdit/NotifyConfigSection.vue'
 
 const logger = window.electronAPI.getLogger('MaaEnd用户编辑')
@@ -121,6 +126,7 @@ const getDefaultMaaEndUserData = () => ({
     RemainedDay: -1,
     IfSkland: false,
     SklandToken: '',
+    SklandCredentialId: '-',
     Notes: '',
     Tag: '',
   },

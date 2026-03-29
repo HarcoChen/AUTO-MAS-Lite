@@ -129,6 +129,30 @@ class Webhook(ConfigBase):
         super().__init__()
 
 
+class GlobalCredential(ConfigBase):
+    """全局凭证配置"""
+
+    def __init__(self) -> None:
+
+        ## Info ------------------------------------------------------------
+        ## 凭证名称
+        self.Info_Name = ConfigItem("Info", "Name", "新凭证")
+        ## 凭证平台
+        self.Info_Platform = ConfigItem(
+            "Info", "Platform", "Skland", OptionsValidator(["Skland"])
+        )
+        ## 是否启用
+        self.Info_Enabled = ConfigItem("Info", "Enabled", True, BoolValidator())
+
+        ## Data ------------------------------------------------------------
+        ## 凭证 Token
+        self.Data_Token = ConfigItem("Data", "Token", "", EncryptValidator())
+        ## 备注
+        self.Data_Notes = ConfigItem("Data", "Notes", "")
+
+        super().__init__()
+
+
 class QueueItem(ConfigBase):
     """队列项配置"""
 
@@ -316,6 +340,13 @@ class MaaUserConfig(ConfigBase):
         ## 森空岛 Token
         self.Info_SklandToken = ConfigItem(
             "Info", "SklandToken", "", EncryptValidator()
+        )
+        ## 森空岛凭证 ID（引用全局凭证）
+        self.Info_SklandCredentialId = ConfigItem(
+            "Info",
+            "SklandCredentialId",
+            "-",
+            MultipleUIDValidator("-", self.related_config, "GlobalCredentials"),
         )
         ## 用户标签信息（虚拟字段，供前端显示）
         self.Info_Tag = ConfigItem(
@@ -639,6 +670,8 @@ class MaaConfig(ConfigBase):
 class MaaEndUserConfig(ConfigBase):
     """MaaEnd用户配置"""
 
+    related_config: dict[str, MultipleConfig] = {}
+
     def __init__(self) -> None:
 
         ## Info ------------------------------------------------------------
@@ -669,6 +702,13 @@ class MaaEndUserConfig(ConfigBase):
         ## 森空岛 Token
         self.Info_SklandToken = ConfigItem(
             "Info", "SklandToken", "", EncryptValidator()
+        )
+        ## 森空岛凭证 ID（引用全局凭证）
+        self.Info_SklandCredentialId = ConfigItem(
+            "Info",
+            "SklandCredentialId",
+            "-",
+            MultipleUIDValidator("-", self.related_config, "GlobalCredentials"),
         )
         ## 用户标签信息
         self.Info_Tag = ConfigItem(
@@ -1654,6 +1694,7 @@ class ToolsConfig(ConfigBase):
             "-",
             VirtualConfigValidator(self.arknights_pc_status),
         )
+        self.GlobalCredentials = MultipleConfig([GlobalCredential])
 
         self.arknights_pc_running = False
         self.arknights_pc_get_connected: Callable[[], bool] = lambda: False
@@ -1900,6 +1941,12 @@ class GlobalConfig(ConfigBase):
         SrcConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
         GeneralConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
         MaaUserConfig.related_config["PlanConfig"] = self.PlanConfig
+        MaaUserConfig.related_config["GlobalCredentials"] = (
+            self.ToolsConfig.GlobalCredentials
+        )
+        MaaEndUserConfig.related_config["GlobalCredentials"] = (
+            self.ToolsConfig.GlobalCredentials
+        )
         QueueItem.related_config["ScriptConfig"] = self.ScriptConfig
 
     def getStage(self) -> str:

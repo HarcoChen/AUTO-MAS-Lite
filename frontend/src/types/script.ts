@@ -152,6 +152,7 @@ export interface User {
     SeriesNumb: string
     Server: string
     SklandToken: string
+    SklandCredentialId: string
     Stage: string
     StageMode: string
     Stage_1: string

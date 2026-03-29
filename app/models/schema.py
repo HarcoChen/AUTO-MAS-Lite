@@ -21,7 +21,7 @@
 #   Contact: DLmaster_361@163.com
 
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Union, Optional, Literal
 
 
@@ -128,9 +128,33 @@ class ToolsConfig_ArknightsPC(BaseModel):
     Status: str | None = Field(default=None, description="工具状态 Tag")
 
 
+class GlobalCredential_Info(BaseModel):
+    Name: Optional[str] = Field(default=None, description="凭证名称")
+    Platform: Optional[Literal["Skland"]] = Field(default=None, description="凭证平台")
+    Enabled: Optional[bool] = Field(default=None, description="是否启用")
+
+
+class GlobalCredential_Data(BaseModel):
+    Token: Optional[str] = Field(default=None, description="凭证Token")
+    Notes: Optional[str] = Field(default=None, description="备注")
+
+
+class GlobalCredential(BaseModel):
+    Info: Optional[GlobalCredential_Info] = Field(default=None, description="凭证信息")
+    Data: Optional[GlobalCredential_Data] = Field(default=None, description="凭证数据")
+
+
+class GlobalCredentialsPayload(BaseModel):
+    instances: List[Dict[str, str]] = Field(default_factory=list, description="全局凭证索引")
+    model_config = ConfigDict(extra="allow")
+
+
 class ToolsConfig(BaseModel):
     ArknightsPC: ToolsConfig_ArknightsPC | None = Field(
         default=None, description="明日方舟PC工具配置"
+    )
+    GlobalCredentials: GlobalCredentialsPayload | None = Field(
+        default=None, description="全局凭证列表"
     )
 
 
@@ -372,6 +396,9 @@ class MaaUserConfig_Info(BaseModel):
     Stage_Remain: Optional[str] = Field(default=None, description="剩余理智关卡")
     IfSkland: Optional[bool] = Field(default=None, description="是否启用森空岛签到")
     SklandToken: Optional[str] = Field(default=None, description="SklandToken")
+    SklandCredentialId: Optional[str] = Field(
+        default=None, description="森空岛全局凭证ID"
+    )
     Tag: Optional[str] = Field(default=None, description="状态标签列表")
 
 
@@ -568,6 +595,9 @@ class MaaEndUserConfig_Info(BaseModel):
     Notes: Optional[str] = Field(default=None, description="备注")
     IfSkland: Optional[bool] = Field(default=None, description="是否启用森空岛签到")
     SklandToken: Optional[str] = Field(default=None, description="SklandToken")
+    SklandCredentialId: Optional[str] = Field(
+        default=None, description="森空岛全局凭证ID"
+    )
     Tag: Optional[str] = Field(default=None, description="用户标签信息")
 
 

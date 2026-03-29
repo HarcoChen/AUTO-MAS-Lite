@@ -156,6 +156,7 @@ export function useScriptApi() {
                   Stage_Remain: any
                   IfSkland: any
                   SklandToken: any
+                  SklandCredentialId: any
                 }
                 Task: {
                   IfStartUp: any
@@ -321,6 +322,10 @@ export function useScriptApi() {
                           maaUserData.Info?.SklandToken !== undefined
                             ? maaUserData.Info.SklandToken
                             : '',
+                        SklandCredentialId:
+                          maaUserData.Info?.SklandCredentialId !== undefined
+                            ? maaUserData.Info.SklandCredentialId
+                            : '-',
                         Tag: maaUserData.Info?.Tag !== undefined ? maaUserData.Info.Tag : null,
                       },
                       Task: {
@@ -633,6 +638,10 @@ export function useScriptApi() {
                           maaEndUserData.Info?.SklandToken !== undefined
                             ? maaEndUserData.Info.SklandToken
                             : '',
+                        SklandCredentialId:
+                          maaEndUserData.Info?.SklandCredentialId !== undefined
+                            ? maaEndUserData.Info.SklandCredentialId
+                            : '-',
                         Notes:
                           maaEndUserData.Info?.Notes !== undefined ? maaEndUserData.Info.Notes : '',
                         Tag:

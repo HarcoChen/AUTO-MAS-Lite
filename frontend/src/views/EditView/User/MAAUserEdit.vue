@@ -55,8 +55,14 @@
           <!-- 任务配置组件 -->
           <TaskConfigSection :form-data="formData" :loading="loading" @save="handleFieldSave" />
 
-          <!-- 森空岛配置组件 -->
-          <SkylandConfigSection :form-data="formData" :loading="loading" @save="handleFieldSave" />
+          <!-- 森空岛签到已统一到工具页 -->
+          <a-alert
+            type="info"
+            show-icon
+            message="森空岛签到已迁移到工具页统一管理"
+            description="请前往“工具 → 签到管理”编辑该用户的签到开关与 Token。"
+            style="margin-bottom: 20px;"
+          />
 
           <!-- 通知配置组件 -->
           <NotifyConfigSection :form-data="formData" :loading="loading" :script-id="scriptId" :user-id="userId"
@@ -89,7 +95,6 @@ import MAAUserEditHeader from '../../MAAUserEdit/MAAUserEditHeader.vue'
 import BasicInfoSection from '../../MAAUserEdit/BasicInfoSection.vue'
 import StageConfigSection from '../../MAAUserEdit/StageConfigSection.vue'
 import TaskConfigSection from '../../MAAUserEdit/TaskConfigSection.vue'
-import SkylandConfigSection from '../../MAAUserEdit/SkylandConfigSection.vue'
 import NotifyConfigSection from '../../MAAUserEdit/NotifyConfigSection.vue'
 
 const router = useRouter()
@@ -395,6 +400,7 @@ const getDefaultMAAUserData = () => ({
     Stage_Remain: '',
     IfSkland: false,
     SklandToken: '',
+    SklandCredentialId: '-',
   },
   Task: {
     IfStartUp: true,

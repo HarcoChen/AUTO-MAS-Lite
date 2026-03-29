@@ -838,6 +838,10 @@ class AppConfig(GlobalConfig):
 
         script_uid = uuid.UUID(script_id)
         user_uid = uuid.UUID(user_id)
+        script_config = self.ScriptConfig[script_uid]
+
+        if isinstance(script_config, (MaaConfig, MaaEndConfig)):
+            await self._inject_skland_token_from_credential(script_uid, user_uid, data)
 
         for group, items in data.items():
             for name, value in items.items():
@@ -846,6 +850,36 @@ class AppConfig(GlobalConfig):
                     .UserData[user_uid]
                     .set(group, name, value)
                 )
+
+    async def _inject_skland_token_from_credential(
+        self, script_uid: uuid.UUID, user_uid: uuid.UUID, data: Dict[str, Dict[str, Any]]
+    ) -> None:
+        """
+        保存脚本用户时，根据 SklandCredentialId 将全局凭证 Token 注入到用户配置。
+        """
+
+        user_config = self.ScriptConfig[script_uid].UserData[user_uid]
+        info_data = data.setdefault("Info", {})
+        credential_id = info_data.get(
+            "SklandCredentialId", user_config.get("Info", "SklandCredentialId")
+        )
+
+        if not credential_id or credential_id == "-":
+            return
+
+        try:
+            credential_uid = uuid.UUID(str(credential_id))
+        except ValueError as e:
+            raise ValueError(f"无效的 SklandCredentialId: {credential_id}") from e
+
+        if credential_uid not in self.ToolsConfig.GlobalCredentials:
+            raise ValueError(f"全局凭证不存在: {credential_id}")
+
+        credential = self.ToolsConfig.GlobalCredentials[credential_uid]
+        if not credential.get("Info", "Enabled"):
+            raise ValueError(f"全局凭证已禁用: {credential.get('Info', 'Name')}")
+
+        info_data["SklandToken"] = credential.get("Data", "Token")
 
     async def del_user(self, script_id: str, user_id: str) -> None:
         """删除用户配置"""
@@ -1259,10 +1293,42 @@ class AppConfig(GlobalConfig):
         logger.info("更新工具设置")
 
         for group, items in data.items():
+            if group == "GlobalCredentials":
+                await self.ToolsConfig.GlobalCredentials.load(items)
+                await self._refresh_users_by_global_credentials()
+                continue
             for name, value in items.items():
                 await self.ToolsConfig.set(group, name, value)
 
         logger.success("工具设置更新成功")
+
+    async def _refresh_users_by_global_credentials(self) -> None:
+        """
+        当全局凭证更新时，刷新所有绑定该凭证用户的 SklandToken（保存时注入策略下的一致性补偿）。
+        """
+
+        for script_uid, script_config in self.ScriptConfig.items():
+            if not isinstance(script_config, (MaaConfig, MaaEndConfig)):
+                continue
+
+            for user_uid, user_config in script_config.UserData.items():
+                credential_id = user_config.get("Info", "SklandCredentialId")
+                if not credential_id or credential_id == "-":
+                    continue
+
+                try:
+                    credential_uid = uuid.UUID(str(credential_id))
+                except ValueError:
+                    continue
+
+                if credential_uid not in self.ToolsConfig.GlobalCredentials:
+                    continue
+
+                credential = self.ToolsConfig.GlobalCredentials[credential_uid]
+                if not credential.get("Info", "Enabled"):
+                    continue
+
+                await user_config.set("Info", "SklandToken", credential.get("Data", "Token"))
 
     async def get_setting(self) -> Dict[str, Any]:
         """获取全局设置"""
