@@ -55,6 +55,7 @@ from app.models.config import (
     Webhook,
     TimeSet,
     EmulatorConfig,
+    GlobalCredential,
 )
 from app.models.schema import WebSocketMessage
 from app.utils.constants import (
@@ -143,6 +144,7 @@ class AppConfig(GlobalConfig):
         await self.ScriptConfig.connect(self.config_path / "ScriptConfig.json")
         await self.QueueConfig.connect(self.config_path / "QueueConfig.json")
         await self.ToolsConfig.connect(self.config_path / "ToolsConfig.json")
+        await self._migrate_legacy_skland_tokens()
 
         from app.services import System
 
@@ -154,6 +156,54 @@ class AppConfig(GlobalConfig):
         self.loop = asyncio.get_running_loop()
 
         logger.info("程序初始化完成")
+
+    async def _migrate_legacy_skland_tokens(self) -> None:
+        """
+        将旧版用户级 SklandToken 最小迁移到全局凭证模型。
+        仅迁移未绑定全局凭证、但仍保留旧 Token 的 MAA/MaaEnd 用户。
+        """
+
+        credential_by_token: dict[str, uuid.UUID] = {}
+        for credential_uid, credential in self.ToolsConfig.GlobalCredentials.items():
+            token = credential.get("Data", "Token")
+            if token and token not in credential_by_token:
+                credential_by_token[token] = credential_uid
+
+        migrated_count = 0
+        for script_uid, script_config in self.ScriptConfig.items():
+            if not isinstance(script_config, (MaaConfig, MaaEndConfig)):
+                continue
+
+            for user_uid, user_config in script_config.UserData.items():
+                if user_config.get("Info", "SklandCredentialId") not in ("", "-"):
+                    continue
+
+                token = user_config.get("Info", "SklandToken")
+                if not token:
+                    continue
+
+                credential_uid = credential_by_token.get(token)
+                if credential_uid is None:
+                    credential_uid, credential_config = (
+                        await self.ToolsConfig.GlobalCredentials.add(GlobalCredential)
+                    )
+                    await credential_config.set(
+                        "Info",
+                        "Name",
+                        f"{script_config.get('Info', 'Name')} - {user_config.get('Info', 'Name')}",
+                    )
+                    await credential_config.set("Info", "Platform", "Skland")
+                    await credential_config.set("Info", "Enabled", True)
+                    await credential_config.set("Data", "Token", token)
+                    credential_by_token[token] = credential_uid
+
+                await user_config.set("Info", "SklandCredentialId", str(credential_uid))
+                migrated_count += 1
+
+        if migrated_count > 0:
+            logger.success(
+                f"旧版森空岛 Token 迁移完成，共迁移 {migrated_count} 个用户到全局凭证"
+            )
 
     async def check_data(self) -> None:
         """检查用户数据文件并处理数据文件版本更新"""
@@ -841,7 +891,14 @@ class AppConfig(GlobalConfig):
         script_config = self.ScriptConfig[script_uid]
 
         if isinstance(script_config, (MaaConfig, MaaEndConfig)):
-            await self._inject_skland_token_from_credential(script_uid, user_uid, data)
+            info_data = data.get("Info")
+            if isinstance(info_data, dict) and any(
+                field in info_data
+                for field in ("IfSkland", "SklandCredentialId", "SklandToken")
+            ):
+                await self._inject_skland_token_from_credential(
+                    script_uid, user_uid, data
+                )
 
         for group, items in data.items():
             for name, value in items.items():
@@ -860,11 +917,14 @@ class AppConfig(GlobalConfig):
 
         user_config = self.ScriptConfig[script_uid].UserData[user_uid]
         info_data = data.setdefault("Info", {})
+        if_skland = info_data.get("IfSkland", user_config.get("Info", "IfSkland"))
         credential_id = info_data.get(
             "SklandCredentialId", user_config.get("Info", "SklandCredentialId")
         )
 
-        if not credential_id or credential_id == "-":
+        if not if_skland or not credential_id or credential_id == "-":
+            info_data["SklandCredentialId"] = "-"
+            info_data["SklandToken"] = ""
             return
 
         try:
@@ -1319,13 +1379,19 @@ class AppConfig(GlobalConfig):
                 try:
                     credential_uid = uuid.UUID(str(credential_id))
                 except ValueError:
+                    await user_config.set("Info", "SklandCredentialId", "-")
+                    await user_config.set("Info", "SklandToken", "")
                     continue
 
                 if credential_uid not in self.ToolsConfig.GlobalCredentials:
+                    await user_config.set("Info", "SklandCredentialId", "-")
+                    await user_config.set("Info", "SklandToken", "")
                     continue
 
                 credential = self.ToolsConfig.GlobalCredentials[credential_uid]
                 if not credential.get("Info", "Enabled"):
+                    await user_config.set("Info", "SklandCredentialId", "-")
+                    await user_config.set("Info", "SklandToken", "")
                     continue
 
                 await user_config.set("Info", "SklandToken", credential.get("Data", "Token"))
