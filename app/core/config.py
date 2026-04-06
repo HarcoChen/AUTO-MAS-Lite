@@ -1351,9 +1351,14 @@ class AppConfig(GlobalConfig):
         """更新工具设置"""
 
         logger.info("更新工具设置")
+        logger.debug(f"工具设置更新分组: {list(data.keys())}")
 
         for group, items in data.items():
             if group == "GlobalCredentials":
+                logger.debug(
+                    "全局凭证更新载荷: "
+                    f"instances={len(items.get('instances', [])) if isinstance(items, dict) else 'invalid'}"
+                )
                 await self.ToolsConfig.GlobalCredentials.load(items)
                 await self._refresh_users_by_global_credentials()
                 continue

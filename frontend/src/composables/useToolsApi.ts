@@ -16,6 +16,7 @@ export function useToolsApi() {
             if (response.code !== 200) {
                 throw new Error(response.message || '获取工具失败')
             }
+            logger.debug(`获取工具响应数据: ${JSON.stringify(response.data)}`)
             return response.data
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
@@ -33,6 +34,7 @@ export function useToolsApi() {
     const updateTools = async (data: ToolsConfig): Promise<void> => {
         loading.value = true
         try {
+            logger.debug(`更新工具请求载荷: ${JSON.stringify(data)}`)
             const response = await Service.updateToolsApiToolsUpdatePost({ data })
             if (response.code !== 200) {
                 throw new Error(response.message || '更新工具失败')

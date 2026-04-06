@@ -103,7 +103,9 @@ export function useCheckinManager() {
   const saveCredential = async (credential: CredentialRow) => {
     savingCreds.value = true
     try {
-      await updateTools({ GlobalCredentials: buildGlobalCredentialPayload(creds.value) } as any)
+      const payload = buildGlobalCredentialPayload(creds.value)
+      logger.debug(`保存单个凭证载荷: ${JSON.stringify(payload)}`)
+      await updateTools({ GlobalCredentials: payload } as any)
       credential.dirty = false
       message.success(`已保存凭证：${credential.name}`)
       // 保存后刷新以确保注入状态
@@ -120,7 +122,9 @@ export function useCheckinManager() {
   const saveCreds = async () => {
     savingCreds.value = true
     try {
-      await updateTools({ GlobalCredentials: buildGlobalCredentialPayload(creds.value) } as any)
+      const payload = buildGlobalCredentialPayload(creds.value)
+      logger.debug(`保存全局凭证载荷: ${JSON.stringify(payload)}`)
+      await updateTools({ GlobalCredentials: payload } as any)
       creds.value.forEach(item => {
         item.dirty = false
       })
@@ -216,9 +220,11 @@ export function useCheckinManager() {
       const [toolsData, scriptsData] = await Promise.all([getTools(), getScriptsWithUsers()])
 
       const globalCredentials = (toolsData as any).GlobalCredentials
+      logger.debug(`读取到的全局凭证原始数据: ${JSON.stringify(globalCredentials)}`)
       if (globalCredentials) {
         try {
           creds.value = parseGlobalCredentialRows(globalCredentials)
+          logger.debug(`解析后的全局凭证数量: ${creds.value.length}`)
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error)
           logger.error(`解析凭证数据失败: ${errorMsg}`)
