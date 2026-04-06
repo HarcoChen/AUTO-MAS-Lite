@@ -41,12 +41,14 @@ export function useCheckinManager() {
     creds.value.filter(item => item.enabled).map(item => ({ label: item.name, value: item.id }))
   )
   const dirtyCredCount = computed(() => creds.value.filter(item => item.dirty).length)
+  
+  // 核心：始终返回所有已定义的平台组，方便按平台创建
   const credentialGroups = computed(() =>
     CHECKIN_PROVIDERS.map(providerItem => ({
       platform: providerItem.platform,
       label: providerItem.displayName,
       creds: creds.value.filter(credential => credential.platform === providerItem.platform),
-    })).filter(group => group.creds.length > 0)
+    }))
   )
   const platformOptions = computed(() =>
     CHECKIN_PROVIDERS.map(item => ({
@@ -58,12 +60,16 @@ export function useCheckinManager() {
 
   const todayUTC8 = computed(() => getTodayInTimezone(8))
 
-  const addCred = () => {
+  // 核心：支持按平台添加
+  const addCred = (platform?: CredentialRow['platform']) => {
     const uid = crypto.randomUUID()
+    const targetPlatform = platform || provider.platform
+    const platformLabel = CHECKIN_PROVIDERS.find(p => p.platform === targetPlatform)?.displayName || '未知'
+    
     creds.value.push({
       id: uid,
-      name: `凭证-${creds.value.length + 1}`,
-      platform: provider.platform,
+      name: `${platformLabel}凭证-${creds.value.length + 1}`,
+      platform: targetPlatform,
       enabled: true,
       token: '',
       notes: '',
@@ -72,6 +78,14 @@ export function useCheckinManager() {
   }
 
   const removeCred = (credId: string) => {
+    // 检查是否有用户正在使用
+    const boundUsers = checkinUsers.value.filter(u => u.ifEnabled && u.credentialId === credId)
+    if (boundUsers.length > 0) {
+      const userNames = boundUsers.map(u => u.userName).join('、')
+      message.warning(`无法删除：该凭证正被用户 [${userNames}] 使用。`)
+      return
+    }
+
     creds.value = creds.value.filter(item => item.id !== credId)
 
     checkinUsers.value.forEach(user => {
@@ -92,6 +106,8 @@ export function useCheckinManager() {
       await updateTools({ GlobalCredentials: buildGlobalCredentialPayload(creds.value) } as any)
       credential.dirty = false
       message.success(`已保存凭证：${credential.name}`)
+      // 保存后刷新以确保注入状态
+      void refreshData()
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       logger.error(`保存凭证失败: ${errorMsg}`)
@@ -109,6 +125,8 @@ export function useCheckinManager() {
         item.dirty = false
       })
       message.success('全局凭证已保存')
+      // 保存后刷新
+      void refreshData()
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       logger.error(`保存全局凭证失败: ${errorMsg}`)
