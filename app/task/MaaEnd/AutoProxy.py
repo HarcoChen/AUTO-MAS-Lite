@@ -111,6 +111,8 @@ class AutoProxyTask(TaskExecuteBase):
             (1, 23), "%Y-%m-%d %H:%M:%S.%f", self.check_log
         )
 
+        self.if_update_maintenance = False
+        self.if_mxu_installing = False
         self.run_book = False
 
     async def main_task(self):
@@ -245,35 +247,75 @@ class AutoProxyTask(TaskExecuteBase):
 
             self.script_info.log = "正在启动游戏...\n游戏启动成功\n正在登录「明日方舟：终末地」\n「明日方舟：终末地」登录成功"
 
-            await self.set_maaend(emulator_info)
+            while True:
+                await self.set_maaend(emulator_info)
 
-            logger.info(f"运行脚本任务: {self.maaend_exe_path}")
-            self.wait_event.clear()
-            await self.maaend_process_manager.open_process(
-                self.maaend_exe_path, stdout=asyncio.subprocess.PIPE
-            )
-            await asyncio.sleep(3)  # 等待 MaaEnd 启动完成
-            # 静默模式隐藏 MaaEnd 窗口
-            if Config.get("Function", "IfSilence"):
-                if await self.maaend_process_manager.minimize_window():
-                    logger.success("静默模式: 成功隐藏 MaaEnd 窗口")
-                else:
-                    logger.error("静默模式: 隐藏 MaaEnd 窗口失败")
-            if self.script_config.get("Game", "ControllerType") == "Win32-Front":
-                if await self.game_process_manager.activate_window():
-                    logger.success("前置 Endfield 窗口成功")
-                else:
-                    logger.error("前置 Endfield 窗口失败")
-
-            await asyncio.sleep(1)
-            if isinstance(
-                self.maaend_process_manager.main_process, asyncio.subprocess.Process
-            ):
-                await self.maaend_log_monitor.start_monitor_process(
-                    self.maaend_process_manager.main_process, "stdout"
+                logger.info(f"运行脚本任务: {self.maaend_exe_path}")
+                self.wait_event.clear()
+                await self.maaend_process_manager.open_process(
+                    self.maaend_exe_path, stdout=asyncio.subprocess.PIPE
                 )
-            await self.wait_event.wait()
-            await self.maaend_log_monitor.stop()
+                await asyncio.sleep(3)  # 等待 MaaEnd 启动完成
+                # 静默模式隐藏 MaaEnd 窗口
+                if Config.get("Function", "IfSilence"):
+                    if await self.maaend_process_manager.minimize_window():
+                        logger.success("静默模式: 成功隐藏 MaaEnd 窗口")
+                    else:
+                        logger.error("静默模式: 隐藏 MaaEnd 窗口失败")
+                if self.script_config.get("Game", "ControllerType") == "Win32-Front":
+                    if await self.game_process_manager.activate_window():
+                        logger.success("前置 Endfield 窗口成功")
+                    else:
+                        logger.error("前置 Endfield 窗口失败")
+
+                await asyncio.sleep(1)
+                if isinstance(
+                    self.maaend_process_manager.main_process, asyncio.subprocess.Process
+                ):
+                    await self.maaend_log_monitor.start_monitor_process(
+                        self.maaend_process_manager.main_process, "stdout"
+                    )
+                await self.wait_event.wait()
+                await self.maaend_log_monitor.stop()
+
+                if self.cur_user_log.status != "MaaEnd 更新包下载完成":
+                    break
+
+                logger.info(f"用户: {self.cur_user_uid} - 检测到 MaaEnd 更新包下载完成")
+                self.script_info.log = (
+                    "检测到 MaaEnd 更新包下载完成\n正在执行 MaaEnd 更新维护"
+                )
+                await Config.send_websocket_message(
+                    id=self.task_info.task_id,
+                    type="Info",
+                    data={"Info": "检测到 MaaEnd 更新包下载完成，正在执行更新维护"},
+                )
+
+                await self.maaend_process_manager.kill()
+                await System.kill_process(self.maaend_exe_path)
+                self.wait_event.clear()
+                self.if_update_maintenance = True
+                self.if_mxu_installing = False
+                await self.maaend_process_manager.open_process(
+                    self.maaend_exe_path, stdout=asyncio.subprocess.PIPE
+                )
+                if isinstance(
+                    self.maaend_process_manager.main_process, asyncio.subprocess.Process
+                ):
+                    await self.maaend_log_monitor.start_monitor_process(
+                        self.maaend_process_manager.main_process, "stdout"
+                    )
+                await self.wait_event.wait()
+                await self.maaend_log_monitor.stop()
+                self.if_update_maintenance = False
+
+                if self.cur_user_log.status != "MaaEnd 更新维护完成":
+                    break
+
+                logger.info("MaaEnd 更新维护完成, 准备重新启动任务")
+                await self.maaend_process_manager.kill()
+                await System.kill_process(self.maaend_exe_path)
+                await asyncio.sleep(3)
 
             if self.cur_user_log.status == "Success!":
                 self.run_book = True
@@ -502,7 +544,46 @@ class AutoProxyTask(TaskExecuteBase):
         log = "".join(log_content)
         self.cur_user_log.content = log_content
         self.script_info.log = log
-        if "资源加载失败" in log:
+
+        if self.if_update_maintenance:
+            if (
+                "开始安装更新:" in log
+                or "检测到可执行安装程序，直接打开:" in log
+            ):
+                self.if_mxu_installing = True
+
+            if "下载失败:" in log or "下载已被用户取消" in log:
+                self.cur_user_log.status = "MaaEnd 更新维护失败"
+            elif (
+                "更新安装完成" in log
+                or "已保存更新完成信息" in log
+                or "已打开安装程序" in log
+                or "重启应用失败:" in log
+            ):
+                self.cur_user_log.status = "MaaEnd 更新维护完成"
+            elif (
+                not await self.maaend_process_manager.is_running()
+                and self.if_mxu_installing
+            ):
+                self.cur_user_log.status = "MaaEnd 更新维护完成"
+            elif not await self.maaend_process_manager.is_running():
+                self.cur_user_log.status = "MaaEnd 更新维护失败"
+            elif datetime.now() - latest_time > timedelta(minutes=15):
+                self.cur_user_log.status = "MaaEnd 更新维护超时"
+            else:
+                self.cur_user_log.status = "MaaEnd 正常运行中"
+
+            logger.debug(f"MaaEnd 日志分析结果: {self.cur_user_log.status}")
+            if self.cur_user_log.status != "MaaEnd 正常运行中":
+                logger.info(
+                    f"MaaEnd 任务结果: {self.cur_user_log.status}, 日志锁已释放"
+                )
+                self.wait_event.set()
+            return
+
+        if "更新下载完成" in log or "检测到待安装更新:" in log:
+            self.cur_user_log.status = "MaaEnd 更新包下载完成"
+        elif "资源加载失败" in log:
             self.cur_user_log.status = "MaaEnd 资源加载失败"
         elif "快捷键开始任务：失败" in log:
             self.cur_user_log.status = "MaaEnd 任务启动失败"
