@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 文件系统操作
   openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
+  openMasUserConfigFolder: (scriptId: string, userId: string) =>
+    ipcRenderer.invoke('open-mas-user-config-folder', scriptId, userId),
   showItemInFolder: (filePath: string) => ipcRenderer.invoke('show-item-in-folder', filePath),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
 

@@ -98,6 +98,10 @@ export interface ElectronAPI {
 
   // 文件系统操作
   openFile: (filePath: string) => Promise<void>
+  openMasUserConfigFolder: (
+    scriptId: string,
+    userId: string
+  ) => Promise<{ success: boolean; path?: string; error?: string }>
   showItemInFolder: (filePath: string) => Promise<void>
   readFile: (filePath: string) => Promise<string>
 

@@ -31,6 +31,12 @@
         </template>
         正在配置
       </a-button>
+      <a-button size="large" :disabled="!userId" @click="handleOpenMasUserConfigFolder">
+        <template #icon>
+          <FolderOpenOutlined />
+        </template>
+        打开配置文件夹
+      </a-button>
       <a-button size="large" class="cancel-button" @click="handleCancel">
         <template #icon>
           <ArrowLeftOutlined />
@@ -275,8 +281,8 @@ import { message } from 'ant-design-vue'
 import {
   ArrowLeftOutlined,
   FileOutlined,
+  FolderOpenOutlined,
   QuestionCircleOutlined,
-  SaveOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue'
 import type { FormInstance, Rule } from 'ant-design-vue/es/form'
@@ -702,6 +708,26 @@ const handleSaveGeneralConfig = async () => {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`保存通用配置失败: ${errorMsg}`)
     message.error('保存通用配置失败')
+  }
+}
+
+const handleOpenMasUserConfigFolder = async () => {
+  try {
+    if (!userId) {
+      message.warning('用户尚未创建，无法打开配置文件夹')
+      return
+    }
+
+    const result = await window.electronAPI.openMasUserConfigFolder(scriptId, userId)
+    if (result.success) {
+      message.success('已打开配置文件夹')
+    } else {
+      message.warning(result.error || '打开配置文件夹失败')
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    logger.error(`打开配置文件夹失败: ${errorMsg}`)
+    message.error('打开配置文件夹失败')
   }
 }
 

@@ -870,6 +870,29 @@ ipcMain.handle('open-file', async (_event, filePath: string) => {
   }
 })
 
+// 打开 AUTO-MAS 保存的用户配置目录
+ipcMain.handle('open-mas-user-config-folder', async (_event, scriptId: string, userId: string) => {
+  try {
+    const appRoot = getAppRoot()
+    const configDir = path.join(appRoot, 'data', scriptId, userId, 'ConfigFile')
+
+    if (!fs.existsSync(configDir)) {
+      return { success: false, error: '该用户还没有保存过配置文件' }
+    }
+
+    const errorMessage = await shell.openPath(configDir)
+    if (errorMessage) {
+      return { success: false, error: errorMessage }
+    }
+
+    return { success: true, path: configDir }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    logger.error(`打开 AUTO-MAS 用户配置目录失败: ${errorMsg}`)
+    return { success: false, error: errorMsg }
+  }
+})
+
 // 显示文件所在目录并选中文件
 ipcMain.handle('show-item-in-folder', async (_event, filePath: string) => {
   try {
