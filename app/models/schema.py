@@ -981,6 +981,10 @@ class UserGetOut(OutBase):
     ] = Field(..., description="用户数据字典, key来自于index列表的uid")
 
 
+class UserConfigFolderOut(OutBase):
+    path: str = Field(..., description="用户配置文件夹路径")
+
+
 class UserCreateOut(OutBase):
     userId: str = Field(..., description="新创建的用户ID")
     data: Union[MaaUserConfig, SrcUserConfig, GeneralUserConfig, MaaEndUserConfig] = (

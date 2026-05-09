@@ -870,25 +870,22 @@ ipcMain.handle('open-file', async (_event, filePath: string) => {
   }
 })
 
-// 打开 AUTO-MAS 保存的用户配置目录
-ipcMain.handle('open-mas-user-config-folder', async (_event, scriptId: string, userId: string) => {
+// 打开文件夹
+ipcMain.handle('open-folder', async (_event, folderPath: string) => {
   try {
-    const appRoot = getAppRoot()
-    const configDir = path.join(appRoot, 'data', scriptId, userId, 'ConfigFile')
-
-    if (!fs.existsSync(configDir)) {
-      return { success: false, error: '该用户还没有保存过配置文件' }
+    if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+      return { success: false, error: '文件夹不存在' }
     }
 
-    const errorMessage = await shell.openPath(configDir)
+    const errorMessage = await shell.openPath(folderPath)
     if (errorMessage) {
       return { success: false, error: errorMessage }
     }
 
-    return { success: true, path: configDir }
+    return { success: true, path: folderPath }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    logger.error(`打开 AUTO-MAS 用户配置目录失败: ${errorMsg}`)
+    logger.error(`打开文件夹失败: ${errorMsg}`)
     return { success: false, error: errorMsg }
   }
 })

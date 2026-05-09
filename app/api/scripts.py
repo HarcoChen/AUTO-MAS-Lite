@@ -281,6 +281,34 @@ async def add_user(user: UserInBase = Body(...)) -> UserCreateOut:
 
 
 @router.post(
+    "/user/config-folder",
+    tags=["Get"],
+    summary="查询用户配置文件夹",
+    response_model=UserConfigFolderOut,
+    status_code=200,
+)
+async def get_user_config_folder(user: UserDeleteIn = Body(...)) -> UserConfigFolderOut:
+
+    try:
+        path = await Config.get_user_config_folder(user.scriptId, user.userId)
+    except FileNotFoundError as e:
+        return UserConfigFolderOut(
+            code=500,
+            status="error",
+            message=str(e),
+            path="",
+        )
+    except Exception as e:
+        return UserConfigFolderOut(
+            code=500,
+            status="error",
+            message=f"{type(e).__name__}: {str(e)}",
+            path="",
+        )
+    return UserConfigFolderOut(path=str(path))
+
+
+@router.post(
     "/user/update",
     tags=["Update"],
     summary="更新用户配置信息",

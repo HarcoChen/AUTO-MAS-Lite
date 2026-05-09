@@ -804,6 +804,23 @@ class AppConfig(GlobalConfig):
         index = data.pop("instances", [])
         return list(index), data
 
+    async def get_user_config_folder(self, script_id: str, user_id: str) -> Path:
+        """获取用户配置文件夹路径"""
+
+        logger.info(f"获取用户配置文件夹: {script_id} - {user_id}")
+
+        script_uid = uuid.UUID(script_id)
+        user_uid = uuid.UUID(user_id)
+
+        # 确认脚本和用户仍存在，避免前端传入任意路径片段。
+        self.ScriptConfig[script_uid].UserData[user_uid]
+
+        config_folder = Path.cwd() / "data" / script_id / user_id / "ConfigFile"
+        if not config_folder.is_dir():
+            raise FileNotFoundError("该用户还没有保存过配置文件")
+
+        return config_folder
+
     async def add_user(
         self, script_id: str
     ) -> tuple[

@@ -718,7 +718,16 @@ const handleOpenMasUserConfigFolder = async () => {
       return
     }
 
-    const result = await window.electronAPI.openMasUserConfigFolder(scriptId, userId)
+    const response = await Service.getUserConfigFolderApiScriptsUserConfigFolderPost({
+      scriptId,
+      userId,
+    })
+    if (response.code !== 200) {
+      message.warning(response.message || '打开配置文件夹失败')
+      return
+    }
+
+    const result = await window.electronAPI.openFolder(response.path)
     if (result.success) {
       message.success('已打开配置文件夹')
     } else {
