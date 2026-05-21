@@ -296,8 +296,11 @@ class AutoProxyTask(TaskExecuteBase):
                 )
                 self.script_info.log = f"{self.cur_user_log.status}\n正在中止相关程序"
 
-                # 中止相关程序
-                await self.kill_managed_process()
+                if self.cur_user_log.status == "MaaEnd 重启更新":
+                    await self.kill_maaend_process()
+                else:
+                    # 中止相关程序
+                    await self.kill_managed_process()
 
                 await Notify.push_plyer(
                     "用户自动代理出现异常！",
@@ -342,12 +345,8 @@ class AutoProxyTask(TaskExecuteBase):
     async def kill_managed_process(self) -> None:
         """中止关联进程"""
 
-        try:
-            logger.info(f"中止 MaaEnd 进程: {self.maaend_exe_path}")
-            await self.maaend_process_manager.kill()
-            await System.kill_process(self.maaend_exe_path)
-        except Exception as e:
-            logger.exception(f"中止 MaaEnd 进程失败: {e}")
+        await self.kill_maaend_process()
+
         try:
             if self.emulator_manager is None:
                 logger.info("中止终末地进程")
@@ -360,6 +359,16 @@ class AutoProxyTask(TaskExecuteBase):
                 )
         except Exception as e:
             logger.exception(f"关闭模拟器失败: {e}")
+
+    async def kill_maaend_process(self) -> None:
+        """中止 MaaEnd 进程"""
+
+        try:
+            logger.info(f"中止 MaaEnd 进程: {self.maaend_exe_path}")
+            await self.maaend_process_manager.kill()
+            await System.kill_process(self.maaend_exe_path)
+        except Exception as e:
+            logger.exception(f"中止 MaaEnd 进程失败: {e}")
 
     async def set_maaend(self, device_info: DeviceInfo | None) -> None:
         """写入 MaaEnd 运行前配置"""
@@ -504,8 +513,14 @@ class AutoProxyTask(TaskExecuteBase):
         log = "".join(log_content)
         self.cur_user_log.content = log_content
         self.script_info.log = log
+        maaend_is_running = await self.maaend_process_manager.is_running()
+        if "下载更新" in log:
+            logger.info(f"MaaEnd 更新日志片段命中: {log[-1000:]}")
         if "资源加载失败" in log:
             self.cur_user_log.status = "MaaEnd 资源加载失败"
+        elif "开始下载更新:" in log:
+            logger.info("检测到 MaaEnd 更新下载日志, 标记为重启更新")
+            self.cur_user_log.status = "MaaEnd 重启更新"
         elif "快捷键开始任务：失败" in log:
             self.cur_user_log.status = "MaaEnd 任务启动失败"
         elif "resolution check failed" in log or "分辨率不符合要求" in log:
@@ -515,8 +530,12 @@ class AutoProxyTask(TaskExecuteBase):
             or "任务完成: ⛔ 结束进程" in log
             or "任务完成: __MXU_KILLPROC__" in log
             or "任务完成: StopTask" in log
-            or not await self.maaend_process_manager.is_running()
+            or not maaend_is_running
         ):
+            logger.info(
+                f"MaaEnd 进入任务结束解析: running={maaend_is_running}, "
+                f"task_dict={'未初始化' if self.task_dict is None else len(self.task_dict)}"
+            )
             if self.task_dict is None:
                 self.cur_user_log.status = "MaaEnd 未加载任何任务"
             else:
@@ -553,7 +572,9 @@ class AutoProxyTask(TaskExecuteBase):
                             unfinished_tasks[task_name] = task_ids
 
                     if unfinished_tasks:
-                        logger.info(f"MaaEnd 未完成任务列表: {unfinished_tasks}")
+                        logger.info(
+                            f"MaaEnd 未完成任务列表: {unfinished_tasks}, 日志尾部: {log[-1000:]}"
+                        )
                         self.cur_user_log.status = "MaaEnd 部分任务执行失败"
                     else:
                         self.cur_user_log.status = "Success!"
