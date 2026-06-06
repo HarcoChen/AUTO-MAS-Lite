@@ -36,7 +36,7 @@ from app.models.emulator import DeviceBase, DeviceInfo
 from app.services import Notify, System
 from app.utils import get_logger, LogMonitor, ProcessManager, is_process_running
 from app.tools import skland_sign_in
-from app.utils.constants import UTC4, UTC8, MAAEND_SANITY_TASK_FIELDS, MAAEND_TASKS
+from app.utils.constants import UTC4, UTC8
 from .tools import login, push_notification
 
 logger = get_logger("MaaEnd 自动代理")
@@ -480,36 +480,27 @@ class AutoProxyTask(TaskExecuteBase):
                 )
             return maaend_i18n.get(str(task["taskName"]), str(task["taskName"]))
 
-        sanity_task_config = {}
-        sanity_task_type = ""
-        target_task_name = ""
         task_config_source = (
             self.script_config
             if self.cur_user_config.get("Info", "Mode") == "简洁"
             else self.cur_user_config
         )
         if self.cur_user_config.get("Info", "Mode") != "自定义":
-            sanity_task_config = {
-                field: task_config_source.get("Task", field)
-                for field in MAAEND_SANITY_TASK_FIELDS
-            }
-            sanity_task_type = sanity_task_config["SanityTaskType"]
-            target_task_name = (
-                "AutoEssence" if sanity_task_type == "Essence" else "ProtocolSpace"
-            )
+            enabled_tasks = task_config_source.get("Task", "EnabledTasks")
+            if isinstance(enabled_tasks, str):
+                try:
+                    enabled_tasks = json.loads(enabled_tasks)
+                except Exception:
+                    enabled_tasks = []
+            if not isinstance(enabled_tasks, list):
+                enabled_tasks = []
+            enabled_task_names = set(enabled_tasks)
+        else:
+            enabled_task_names = set()
 
         if self.task_dict is None:
             # 首次运行时按 MAS 配置生成本轮任务表，后续重试只收束这张表
             self.task_dict = {}
-            sanity_configured = False
-            sanity_enabled = (
-                self.cur_user_config.get("Info", "Mode") != "自定义"
-                and task_config_source.get("Task", "IfSanity")
-                and any(
-                    task.get("taskName") in ("ProtocolSpace", "AutoEssence")
-                    for task in maaend_tasks
-                )
-            )
 
             for task in maaend_tasks:
                 if task["taskName"].startswith("__MXU_"):
@@ -517,40 +508,12 @@ class AutoProxyTask(TaskExecuteBase):
 
                 task_enabled = task["enabled"]
                 if self.cur_user_config.get("Info", "Mode") != "自定义":
-                    if task["taskName"] in ("ProtocolSpace", "AutoEssence"):
-                        task_enabled = (
-                            sanity_enabled
-                            and task["taskName"] == target_task_name
-                            and not sanity_configured
-                        )
-                        if task_enabled:
-                            sanity_configured = True
-                    elif task["taskName"] in MAAEND_TASKS:
-                        task_enabled = task_config_source.get(
-                            "Task", f"If{task['taskName']}"
-                        )
+                    task_enabled = task["taskName"] in enabled_task_names
 
                 task_name = get_task_book_name(task)
                 if task_name not in self.task_dict:
                     self.task_dict[task_name] = {}
                 self.task_dict[task_name][task["id"]] = task_enabled
-
-            if (
-                sanity_enabled
-                and target_task_name == "ProtocolSpace"
-                and not sanity_configured
-            ):
-                raise ValueError(
-                    f"用户 {self.cur_user_item.name} 当前 MaaEnd 配置中缺少 ProtocolSpace 任务，无法注入协议空间配置"
-                )
-            if (
-                sanity_enabled
-                and target_task_name == "AutoEssence"
-                and not sanity_configured
-            ):
-                raise ValueError(
-                    f"用户 {self.cur_user_item.name} 当前 MaaEnd 配置中缺少 AutoEssence 任务，无法注入基质刷取配置"
-                )
 
         # 按本轮任务表写回 MaaEnd 运行配置
         for task in maaend_tasks:
@@ -563,37 +526,6 @@ class AutoProxyTask(TaskExecuteBase):
 
             if not task["enabled"]:
                 continue
-
-            if (
-                self.cur_user_config.get("Info", "Mode") != "自定义"
-                and task["taskName"] == target_task_name
-                and target_task_name == "ProtocolSpace"
-            ):
-                task.setdefault("optionValues", {})
-                task["optionValues"]["ProtocolSpaceTab"] = {
-                    "type": "select",
-                    "caseName": sanity_task_type,
-                }
-                for option in (
-                    "OperatorProgression",
-                    "WeaponProgression",
-                    "CrisisDrills",
-                    "RewardsSetOption",
-                ):
-                    task["optionValues"][option] = {
-                        "type": "select",
-                        "caseName": sanity_task_config[option],
-                    }
-            elif (
-                self.cur_user_config.get("Info", "Mode") != "自定义"
-                and task["taskName"] == target_task_name
-                and target_task_name == "AutoEssence"
-            ):
-                task.setdefault("optionValues", {})
-                task["optionValues"]["AutoEssenceSpecifiedLocation"] = {
-                    "type": "select",
-                    "caseName": sanity_task_config["AutoEssenceSpecifiedLocation"],
-                }
 
         (self.maaend_set_path / "mxu-MaaEnd.json").write_text(
             json.dumps(maaend_set, ensure_ascii=False, indent=4), encoding="utf-8"

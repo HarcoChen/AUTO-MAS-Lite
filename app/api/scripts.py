@@ -492,6 +492,49 @@ async def reorder_webhook(webhook: WebhookReorderIn = Body(...)) -> OutBase:
 
 
 @router.post(
+    "/maaend/tasks/available",
+    tags=["MaaEnd"],
+    summary="获取 MaaEnd 动态任务和选项定义",
+    response_model=MaaEndAvailableTasksOut,
+    status_code=200,
+)
+async def get_maaend_available_tasks(
+    request: MaaEndAvailableTasksIn = Body(...),
+) -> MaaEndAvailableTasksOut:
+    """
+    获取 MaaEnd 动态任务和选项定义
+
+    前端调用此接口获取 MaaEnd 预设模式可配置任务，
+    用于动态渲染任务开关和 optionValues。
+    """
+    from app.task.MaaEnd.task_loader import MaaEndTaskLoader
+
+    try:
+        script_config = Config.ScriptConfig[uuid.UUID(request.scriptId)]
+        maaend_path = Path(script_config.get("Info", "Path"))
+        controller_type = script_config.get("Game", "ControllerType")
+        loader = MaaEndTaskLoader(maaend_path)
+        tasks = loader.get_available_tasks_with_options(controller_type)
+        return MaaEndAvailableTasksOut(
+            message=f"共 {len(tasks)} 个可用任务",
+            data={
+                "groups": loader.get_groups(),
+                "controllers": loader.get_controllers(),
+                "resources": loader.get_resources(),
+                "controllerType": controller_type,
+                "tasks": tasks,
+            },
+        )
+    except Exception as e:
+        return MaaEndAvailableTasksOut(
+            code=500,
+            status="error",
+            message=f"{type(e).__name__}: {str(e)}",
+            data={},
+        )
+
+
+@router.post(
     "/m9a/tasks/available",
     tags=["M9A"],
     summary="获取 M9A 可用任务列表（排除 standalone 任务）",

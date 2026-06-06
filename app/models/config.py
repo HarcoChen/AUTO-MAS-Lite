@@ -32,15 +32,6 @@ from app.utils.constants import (
     MATERIALS_MAP,
     RESOURCE_STAGE_INFO,
     MAA_STAGE_KEY,
-    MAAEND_AUTO_ESSENCE_LOCATION_OPTIONS,
-    MAAEND_PROTOCOL_SPACE_TASK_OPTIONS,
-    MAAEND_SANITY_TASK_DEFAULTS,
-    MAAEND_SANITY_TASK_DETAIL_LABELS,
-    MAAEND_SANITY_TASK_FIELDS,
-    MAAEND_SANITY_TASK_LABELS,
-    MAAEND_STAGE_WITH_AB,
-    MAAEND_TASKS,
-    MAAEND_SANITY_TASK_TYPES,
     STARRAIL_STAGE_BOOK,
 )
 from .ConfigBase import (
@@ -72,79 +63,14 @@ from .schema import TagItem
 def init_maaend_task_config(config) -> None:
     """初始化 MaaEnd 预设任务配置"""
 
-    ## 理智任务类型
-    config.Task_SanityTaskType = ConfigItem(
-        "Task",
-        "SanityTaskType",
-        MAAEND_SANITY_TASK_DEFAULTS["SanityTaskType"],
-        OptionsValidator(list(MAAEND_SANITY_TASK_TYPES)),
+    ## 启用任务列表（由 MaaEnd interface.json 动态解析）
+    config.Task_EnabledTasks = ConfigItem(
+        "Task", "EnabledTasks", "[]", JSONValidator(list)
     )
-    ## 干员养成任务
-    config.Task_OperatorProgression = ConfigItem(
-        "Task",
-        "OperatorProgression",
-        MAAEND_SANITY_TASK_DEFAULTS["OperatorProgression"],
-        OptionsValidator(
-            list(MAAEND_PROTOCOL_SPACE_TASK_OPTIONS["OperatorProgression"])
-        ),
+    ## 任务选项值（由 MaaEnd tasks/*.json 动态解析）
+    config.Task_OptionValues = ConfigItem(
+        "Task", "OptionValues", "{}", JSONValidator(dict)
     )
-    ## 武器养成任务
-    config.Task_WeaponProgression = ConfigItem(
-        "Task",
-        "WeaponProgression",
-        MAAEND_SANITY_TASK_DEFAULTS["WeaponProgression"],
-        OptionsValidator(list(MAAEND_PROTOCOL_SPACE_TASK_OPTIONS["WeaponProgression"])),
-    )
-    ## 危境预演任务
-    config.Task_CrisisDrills = ConfigItem(
-        "Task",
-        "CrisisDrills",
-        MAAEND_SANITY_TASK_DEFAULTS["CrisisDrills"],
-        OptionsValidator(list(MAAEND_PROTOCOL_SPACE_TASK_OPTIONS["CrisisDrills"])),
-    )
-    ## 奖励套组选项
-    config.Task_RewardsSetOption = ConfigItem(
-        "Task",
-        "RewardsSetOption",
-        MAAEND_SANITY_TASK_DEFAULTS["RewardsSetOption"],
-        OptionsValidator(["RewardsSetA", "RewardsSetB"]),
-    )
-    ## 基质刷取地点
-    config.Task_AutoEssenceSpecifiedLocation = ConfigItem(
-        "Task",
-        "AutoEssenceSpecifiedLocation",
-        MAAEND_SANITY_TASK_DEFAULTS["AutoEssenceSpecifiedLocation"],
-        OptionsValidator(list(MAAEND_AUTO_ESSENCE_LOCATION_OPTIONS)),
-    )
-
-    for task_name in MAAEND_TASKS:
-        setattr(
-            config,
-            f"Task_If{task_name}",
-            ConfigItem("Task", f"If{task_name}", True, BoolValidator()),
-        )
-
-"""
-脚本级和用户级的理智任务配置项完全一样, 但为了兼容旧版 MaaEnd 的用户配置, 需要在 MaaEndUserConfig 中重复定义一次, 并在加载时进行迁移处理
-"""
-
-def _normalize_maaend_sanity_task_type(task_data: object) -> None:
-    """将旧版 MaaEnd 理智任务配置迁移到当前结构"""
-
-    if not isinstance(task_data, dict):
-        return
-
-    sanity_task_type = task_data.get("SanityTaskType")
-    if sanity_task_type in MAAEND_SANITY_TASK_TYPES:
-        return
-
-    if sanity_task_type == "ProtocolSpace":
-        protocol_space_tab = task_data.get("ProtocolSpaceTab")
-        if protocol_space_tab in MAAEND_SANITY_TASK_TYPES[:-1]:
-            task_data["SanityTaskType"] = protocol_space_tab
-            return
-
-    task_data["SanityTaskType"] = MAAEND_SANITY_TASK_DEFAULTS["SanityTaskType"]
 
 
 class EmulatorConfig(ConfigBase):
@@ -824,18 +750,7 @@ class MaaEndUserConfig(ConfigBase):
         ):
             info_data["Mode"] = "自定义"
 
-        task_data = data.get("Task")
-        if isinstance(task_data, dict):
-            _normalize_maaend_sanity_task_type(task_data)
         await super().load(data)
-
-    def get_effective_sanity_task_config(self) -> tuple[dict[str, str], str]:
-        """获取当前生效的理智任务配置"""
-
-        return (
-            {field: self.get("Task", field) for field in MAAEND_SANITY_TASK_FIELDS},
-            "Fixed",
-        )
 
     def getTags(self) -> str:
         """生成用户标签列表，返回JSON字符串格式的TagItem列表"""
@@ -905,40 +820,14 @@ class MaaEndUserConfig(ConfigBase):
             }
         )
 
-        # 理智任务标签
-        if self.get("Task", "IfSanity"):
-            task_config, _ = self.get_effective_sanity_task_config()
-            sanity_task_type = task_config["SanityTaskType"]
-            tags.append(
-                {
-                    "text": f"理智任务：{MAAEND_SANITY_TASK_LABELS[sanity_task_type]}",
-                    "color": "blue",
-                }
-            )
-
-            detail_key = (
-                task_config["AutoEssenceSpecifiedLocation"]
-                if sanity_task_type == "Essence"
-                else task_config[sanity_task_type]
-            )
-            tags.append(
-                {
-                    "text": f"详细任务：{MAAEND_SANITY_TASK_DETAIL_LABELS[detail_key]}",
-                    "color": "blue",
-                }
-            )
-
-            if detail_key in MAAEND_STAGE_WITH_AB:
-                tags.append(
-                    {
-                        "text": (
-                            "奖励组：奖励组 A"
-                            if task_config["RewardsSetOption"] == "RewardsSetA"
-                            else "奖励组：奖励组 B"
-                        ),
-                        "color": "blue",
-                    }
-                )
+        # 预设任务标签
+        enabled_tasks = self.get("Task", "EnabledTasks")
+        tags.append(
+            {
+                "text": f"预设任务：{len(enabled_tasks)} 个",
+                "color": "blue" if enabled_tasks else "orange",
+            }
+        )
 
         # 备注标签
         notes = self.get("Info", "Notes")
