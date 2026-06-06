@@ -44,6 +44,30 @@ logger = get_logger("MaaEnd 自动代理")
 # 终末地 PC 客户端进程名固定，MAS 接管启动前据此避免重复拉起
 _ENDFIELD_CLIENT_PROCESS = "Endfield.exe"
 
+# ProtocolSpace 的奖励组选项目前仅 MaaEnd 自动代理注入会用到，留在本文件内即可。
+_PROTOCOL_SPACE_REWARD_OPTION_MAP = {
+    "OperatorEXP": {
+        "option_name": "OperatorEXPRewardsSetOption",
+        "RewardsSetA": "AdvancedCombatRecord",
+        "RewardsSetB": "CognitiveCarriers",
+    },
+    "Promotions": {
+        "option_name": "PromotionsRewardsSetOption",
+        "RewardsSetA": "Protodisk",
+        "RewardsSetB": "Protoset",
+    },
+    "SkillUp": {
+        "option_name": "SkillUpRewardsSetOption",
+        "RewardsSetA": "Protoprism",
+        "RewardsSetB": "Protohedron",
+    },
+    "WeaponTune": {
+        "option_name": "WeaponTuneRewardsSetOption",
+        "RewardsSetA": "CastDie",
+        "RewardsSetB": "HeavyCastDie",
+    },
+}
+
 
 class AutoProxyTask(TaskExecuteBase):
     """MaaEnd 自动代理模式"""
@@ -570,20 +594,34 @@ class AutoProxyTask(TaskExecuteBase):
                 and target_task_name == "ProtocolSpace"
             ):
                 task.setdefault("optionValues", {})
+                option_values = task["optionValues"]
                 task["optionValues"]["ProtocolSpaceTab"] = {
                     "type": "select",
                     "caseName": sanity_task_type,
                 }
-                for option in (
-                    "OperatorProgression",
-                    "WeaponProgression",
-                    "CrisisDrills",
-                    "RewardsSetOption",
-                ):
-                    task["optionValues"][option] = {
+                for option in ("OperatorProgression", "WeaponProgression", "CrisisDrills"):
+                    option_values[option] = {
                         "type": "select",
                         "caseName": sanity_task_config[option],
                     }
+
+                option_values.pop("RewardsSetOption", None)
+                for reward_option in _PROTOCOL_SPACE_REWARD_OPTION_MAP.values():
+                    option_values.pop(reward_option["option_name"], None)
+
+                selected_protocol_task = sanity_task_config.get(sanity_task_type)
+                reward_option = _PROTOCOL_SPACE_REWARD_OPTION_MAP.get(
+                    selected_protocol_task
+                )
+                if reward_option is not None:
+                    reward_case_name = reward_option.get(
+                        sanity_task_config["RewardsSetOption"]
+                    )
+                    if reward_case_name is not None:
+                        option_values[reward_option["option_name"]] = {
+                            "type": "select",
+                            "caseName": reward_case_name,
+                        }
             elif (
                 self.cur_user_config.get("Info", "Mode") != "自定义"
                 and task["taskName"] == target_task_name
