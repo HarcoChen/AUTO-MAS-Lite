@@ -514,14 +514,22 @@ async def get_maaend_available_tasks(
         maaend_path = Path(script_config.get("Info", "Path"))
         controller_type = script_config.get("Game", "ControllerType")
         loader = MaaEndTaskLoader(maaend_path)
-        tasks = loader.get_available_tasks_with_options(controller_type)
+        controller = loader.get_controller(controller_type)
+        if controller is None:
+            raise ValueError(f"MaaEnd interface.json 未找到控制器：{controller_type}")
+        controller_name = str(controller["name"])
+        tasks = []
+        for task in loader.get_available_tasks(controller_name):
+            task_definition = loader.get_full_definition(task["name"])
+            if task_definition is not None:
+                tasks.append(task_definition)
         return MaaEndAvailableTasksOut(
             message=f"共 {len(tasks)} 个可用任务",
             data={
                 "groups": loader.get_groups(),
                 "controllers": loader.get_controllers(),
                 "resources": loader.get_resources(),
-                "controllerType": controller_type,
+                "controllerType": controller_name,
                 "tasks": tasks,
             },
         )

@@ -122,14 +122,18 @@ class MaaEndTaskLoader:
 
             translated_data = self._translate(raw_data)
             for task in translated_data.get("task", []):
-                task_name = task.get("name")
-                if not task_name or self._is_internal_task(task_name):
-                    continue
-                self._task_cache[task_name] = task
-                self._raw_data_cache[task_name] = translated_data
-                logger.debug(f"加载 MaaEnd 任务：{task_name}")
+                self._cache_task(task, translated_data)
 
         logger.success(f"MaaEnd 任务加载完成，共 {len(self._task_cache)} 个任务")
+
+    def _cache_task(self, task: dict[str, Any], raw_data: dict[str, Any]) -> None:
+        task_name = task.get("name")
+        if not task_name or self._is_internal_task(task_name):
+            return
+
+        self._task_cache[task_name] = task
+        self._raw_data_cache[task_name] = raw_data
+        logger.debug(f"加载 MaaEnd 任务：{task_name}")
 
     def get_groups(self) -> list[dict[str, Any]]:
         """获取 MaaEnd 分组定义"""
@@ -145,6 +149,34 @@ class MaaEndTaskLoader:
         """获取 MaaEnd 资源定义"""
 
         return deepcopy(self._resources)
+
+    def get_controller(self, controller_name: str) -> dict[str, Any] | None:
+        """获取 MaaEnd 控制器定义"""
+
+        for controller in self._controllers:
+            if controller.get("name") == controller_name:
+                return deepcopy(controller)
+
+        candidates = []
+        for controller in self._controllers:
+            controller_type = str(controller.get("type")).lower()
+            if controller_name == "ADB" and controller_type == "adb":
+                candidates.append(controller)
+            elif (
+                str(controller_name).startswith("Win32")
+                and controller_type == "win32"
+            ):
+                candidates.append(controller)
+
+        if controller_name == "Win32-Window":
+            candidates.sort(
+                key=lambda controller: (
+                    "background" not in str(controller.get("name")).lower(),
+                    str(controller.get("name")),
+                )
+            )
+
+        return deepcopy(candidates[0]) if candidates else None
 
     def get_available_tasks(
         self, controller_name: str | None = None
@@ -181,21 +213,25 @@ class MaaEndTaskLoader:
             return None
 
         result = deepcopy(task_def)
-        option_names = result.get("option", [])
+        option_names = self._normalize_option_names(result.get("option", []))
         result["_option_definitions"] = self._collect_option_definitions(option_names)
         return result
 
-    def get_available_tasks_with_options(
-        self, controller_name: str | None = None
-    ) -> list[dict[str, Any]]:
-        """获取可用任务和完整 option 定义"""
+    def get_task_definition(self, task_name: str) -> dict[str, Any] | None:
+        """获取单个任务定义"""
 
-        result = []
-        for task in self.get_available_tasks(controller_name):
-            full_def = self.get_full_definition(str(task["name"]))
-            if full_def is not None:
-                result.append(full_def)
-        return result
+        return self._task_cache.get(task_name)
+
+    def get_all_task_names(self) -> list[str]:
+        """获取所有任务名称列表"""
+
+        return list(self._task_cache.keys())
+
+    @staticmethod
+    def _normalize_option_names(option_names: Any) -> list[str]:
+        if not isinstance(option_names, list):
+            return []
+        return [str(option_name) for option_name in option_names]
 
     def _collect_option_definitions(self, option_names: list[str]) -> dict[str, Any]:
         """收集任务及子选项需要的 option 定义"""
@@ -212,10 +248,24 @@ class MaaEndTaskLoader:
 
             collected[option_name] = deepcopy(option_def)
             for case_item in option_def.get("cases", []):
-                for sub_option_name in case_item.get("option", []):
+                for sub_option_name in self._normalize_option_names(
+                    case_item.get("option", [])
+                ):
                     collect(sub_option_name)
 
         for option_name in option_names:
             collect(option_name)
 
         return collected
+
+    def reload(self) -> None:
+        """重新加载 MaaEnd 任务定义"""
+
+        self._locale.clear()
+        self._groups.clear()
+        self._controllers.clear()
+        self._resources.clear()
+        self._task_cache.clear()
+        self._raw_data_cache.clear()
+        self._global_option_defs.clear()
+        self._load_all_tasks()

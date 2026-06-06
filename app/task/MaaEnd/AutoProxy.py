@@ -38,6 +38,7 @@ from app.utils import get_logger, LogMonitor, ProcessManager, is_process_running
 from app.tools import skland_sign_in
 from app.utils.constants import UTC4, UTC8
 from .tools import login, push_notification
+from .task_loader import MaaEndTaskLoader
 
 logger = get_logger("MaaEnd 自动代理")
 
@@ -82,18 +83,14 @@ class AutoProxyTask(TaskExecuteBase):
             self.cur_user_item.status = "跳过"
             return "今日代理次数已达上限, 跳过该用户"
 
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
-        config_file = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile/mxu-MaaEnd.json"
-        )
-        if not config_file.exists():
-            self.cur_user_item.status = "异常"
-            return "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
+        if self.cur_user_config.get("Info", "Mode") == "自定义":
+            config_file = (
+                Path.cwd()
+                / f"data/{self.script_info.script_id}/{self.cur_user_uid}/ConfigFile/mxu-MaaEnd.json"
+            )
+            if not config_file.exists():
+                self.cur_user_item.status = "异常"
+                return "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
 
         return "Pass"
 
@@ -382,6 +379,17 @@ class AutoProxyTask(TaskExecuteBase):
         await self.maaend_process_manager.kill()
         await System.kill_process(self.maaend_exe_path)
 
+        if self.cur_user_config.get("Info", "Mode") != "自定义":
+            maaend_set = await self.build_preset_config(device_info)
+            shutil.rmtree(self.maaend_set_path, ignore_errors=True)
+            self.maaend_set_path.mkdir(parents=True, exist_ok=True)
+            (self.maaend_set_path / "mxu-MaaEnd.json").write_text(
+                json.dumps(maaend_set, ensure_ascii=False, indent=4),
+                encoding="utf-8",
+            )
+            logger.success("MaaEnd 运行参数配置完成: 自动代理")
+            return
+
         maaend_local_config = None
         if (self.maaend_set_path / "mxu-MaaEnd.json").exists():
             maaend_local_config = json.loads(
@@ -390,21 +398,15 @@ class AutoProxyTask(TaskExecuteBase):
                 )
             )
 
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
         maaend_config_path = (
             Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile"
+            / f"data/{self.script_info.script_id}/{self.cur_user_uid}/ConfigFile"
         )
         maaend_config_file = maaend_config_path / "mxu-MaaEnd.json"
         if not maaend_config_file.exists():
             raise FileNotFoundError(
                 "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
             )
-
         shutil.rmtree(self.maaend_set_path, ignore_errors=True)
         shutil.copytree(maaend_config_path, self.maaend_set_path)
         maaend_set = json.loads(
@@ -473,30 +475,10 @@ class AutoProxyTask(TaskExecuteBase):
                 maaend_i18n[task_definition["name"]] = task_definition["label"]
 
         def get_task_book_name(task: dict[str, object]) -> str:
-            if self.cur_user_config.get("Info", "Mode") == "自定义":
-                return str(
-                    task.get("customName")
-                    or maaend_i18n.get(str(task["taskName"]), str(task["taskName"]))
-                )
-            return maaend_i18n.get(str(task["taskName"]), str(task["taskName"]))
-
-        task_config_source = (
-            self.script_config
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_config
-        )
-        if self.cur_user_config.get("Info", "Mode") != "自定义":
-            enabled_tasks = task_config_source.get("Task", "EnabledTasks")
-            if isinstance(enabled_tasks, str):
-                try:
-                    enabled_tasks = json.loads(enabled_tasks)
-                except Exception:
-                    enabled_tasks = []
-            if not isinstance(enabled_tasks, list):
-                enabled_tasks = []
-            enabled_task_names = set(enabled_tasks)
-        else:
-            enabled_task_names = set()
+            return str(
+                task.get("customName")
+                or maaend_i18n.get(str(task["taskName"]), str(task["taskName"]))
+            )
 
         if self.task_dict is None:
             # 首次运行时按 MAS 配置生成本轮任务表，后续重试只收束这张表
@@ -507,8 +489,6 @@ class AutoProxyTask(TaskExecuteBase):
                     continue
 
                 task_enabled = task["enabled"]
-                if self.cur_user_config.get("Info", "Mode") != "自定义":
-                    task_enabled = task["taskName"] in enabled_task_names
 
                 task_name = get_task_book_name(task)
                 if task_name not in self.task_dict:
@@ -531,6 +511,155 @@ class AutoProxyTask(TaskExecuteBase):
             json.dumps(maaend_set, ensure_ascii=False, indent=4), encoding="utf-8"
             )
         logger.success("MaaEnd 运行参数配置完成: 自动代理")
+
+    async def build_preset_config(
+        self, device_info: DeviceInfo | None
+    ) -> dict[str, object]:
+        """按 MAS 动态配置生成 MaaEnd 预设运行配置"""
+
+        task_loader = MaaEndTaskLoader(self.maaend_root_path)
+        controller_type = self.script_config.get("Game", "ControllerType")
+        controller = task_loader.get_controller(controller_type)
+        if controller is None:
+            raise ValueError(f"MaaEnd interface.json 未找到控制器：{controller_type}")
+        if controller.get("name") != controller_type:
+            logger.warning(
+                f"MaaEnd 控制器 {controller_type} 不存在，使用 {controller['name']}"
+            )
+        controller_name = str(controller["name"])
+
+        configured_resource = self.cur_user_config.get("Info", "Resource")
+        resource_names = [
+            resource.get("name")
+            for resource in task_loader.get_resources()
+            if resource.get("name")
+        ]
+        if configured_resource in resource_names:
+            resource_name = configured_resource
+        elif resource_names:
+            resource_name = str(resource_names[0])
+            logger.warning(
+                f"MaaEnd 资源 {configured_resource} 不存在，使用 {resource_name}"
+            )
+        else:
+            resource_name = configured_resource or "官服"
+
+        task_config_source = (
+            self.script_config
+            if self.cur_user_config.get("Info", "Mode") == "简洁"
+            else self.cur_user_config
+        )
+        enabled_tasks = task_config_source.get("Task", "EnabledTasks")
+        option_values = task_config_source.get("Task", "OptionValues")
+
+        if isinstance(enabled_tasks, str):
+            try:
+                enabled_tasks = json.loads(enabled_tasks)
+            except Exception:
+                enabled_tasks = []
+        if not isinstance(enabled_tasks, list):
+            enabled_tasks = []
+
+        if isinstance(option_values, str):
+            try:
+                option_values = json.loads(option_values)
+            except Exception:
+                option_values = {}
+        if not isinstance(option_values, dict):
+            option_values = {}
+
+        available_tasks = {
+            task["name"]: task
+            for task in task_loader.get_available_tasks(controller_name)
+            if task.get("name")
+        }
+        maaend_tasks = []
+        task_status: dict[str, dict[str, bool]] = {}
+
+        for task_name in enabled_tasks:
+            if not isinstance(task_name, str) or task_name.startswith("__MXU_"):
+                continue
+            task_definition = available_tasks.get(task_name)
+            if task_definition is None:
+                logger.warning(
+                    f"MaaEnd 预设任务不可用或不支持当前控制器：{task_name}"
+                )
+                continue
+
+            task_id = uuid.uuid4().hex[:7]
+            task_option_values = option_values.get(task_name, {})
+            if not isinstance(task_option_values, dict):
+                task_option_values = {}
+
+            maaend_tasks.append(
+                {
+                    "id": task_id,
+                    "taskName": task_name,
+                    "enabled": True,
+                    "optionValues": task_option_values,
+                }
+            )
+            task_label = task_definition.get("label") or task_name
+            task_status.setdefault(str(task_label), {})[task_id] = True
+
+        if self.task_dict is None:
+            self.task_dict = task_status
+
+        self.maaend_instance_name = "AUTO-MAS"
+        maaend_instance = {
+            "id": "automas",
+            "name": "AUTO-MAS",
+            "controllerName": controller_name,
+            "resourceName": resource_name,
+            "tasks": maaend_tasks,
+        }
+
+        saved_device = await self._build_saved_device(controller, device_info)
+        if saved_device:
+            maaend_instance["savedDevice"] = saved_device
+
+        return {
+            "instances": [maaend_instance],
+            "settings": {
+                "language": "zh-CN",
+                "onboardingCompleted": True,
+                "autoStartInstanceId": "automas",
+                "autoRunOnLaunch": True,
+            },
+            "customAccents": [],
+            "recentlyClosed": [],
+            "newTaskNames": [],
+            "lastActiveInstanceId": "automas",
+            "presetInitialized": True,
+        }
+
+    async def _build_saved_device(
+        self, controller: dict[str, object], device_info: DeviceInfo | None
+    ) -> dict[str, str] | None:
+        """生成 MaaEnd savedDevice 配置"""
+
+        controller_kind = str(controller.get("type")).lower()
+        if controller_kind == "adb":
+            if device_info is None:
+                raise ValueError("MaaEnd ADB 控制器缺少设备信息")
+            from app.core import MaaFWManager
+
+            return {"adbDeviceName": (await MaaFWManager.convert_adb(device_info)).name}
+
+        if controller_kind == "win32":
+            win32_config = controller.get("win32")
+            game_path = self.script_config.get("Game", "Path")
+            window_regex = (
+                win32_config.get("window_regex")
+                if isinstance(win32_config, dict)
+                else None
+            )
+            return {
+                "windowName": str(window_regex or Path(str(game_path)).stem),
+                "connectedProgramPath": game_path,
+            }
+
+        return None
 
     async def check_log(self, log_content: list[str], latest_time: datetime) -> None:
         """日志回调"""
