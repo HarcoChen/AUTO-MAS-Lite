@@ -12,3 +12,4 @@ export type MaaEndConfig_Task = {
      */
     OptionValues?: (Record<string, Record<string, any>> | null);
 };
+
