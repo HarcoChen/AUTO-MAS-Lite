@@ -56,6 +56,9 @@
           <TaskConfigSection
             :form-data="formData"
             :loading="loading"
+            :script-id="scriptId"
+            :schema-data="maaEndSchema"
+            :schema-loading="maaEndSchemaLoading"
             :mode="formData.Info.Mode"
             source="user"
             :controller-type="controllerType"
@@ -112,8 +115,10 @@ let userId = route.params.userId as string
 const isEdit = ref(!!userId)
 const scriptName = ref('')
 const controllerType = ref<string | null>(null)
+const maaEndSchemaLoading = ref(false)
+const maaEndSchema = ref<Record<string, any> | null>(null)
 const presetSupported = computed(
-  () => controllerType.value === 'Win32-Window' || controllerType.value === 'Win32-Front'
+  () => String(controllerType.value || '').toLowerCase().startsWith('win32')
 )
 
 const maaEndConfigLoading = ref(false)
@@ -226,11 +231,28 @@ const handleFieldsSave = async (changes: FieldChange[]) => {
   await saveUserFields(changes)
 }
 
+const loadMaaEndSchema = async () => {
+  maaEndSchemaLoading.value = true
+  try {
+    const response = await Service.getMaaendAvailableTasksApiScriptsMaaendTasksAvailablePost({
+      scriptId,
+    })
+    maaEndSchema.value = response.data || null
+    controllerType.value = response.data?.controllerType || controllerType.value
+  } catch (error) {
+    maaEndSchema.value = null
+    logger.error(`加载 MaaEnd schema 失败: ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    maaEndSchemaLoading.value = false
+  }
+}
+
 const loadScriptInfo = async () => {
   const scriptDetail = await getScript(scriptId)
   if (scriptDetail) {
     scriptName.value = scriptDetail.name
     controllerType.value = (scriptDetail.config as any).Game?.ControllerType ?? null
+    await loadMaaEndSchema()
   }
 }
 

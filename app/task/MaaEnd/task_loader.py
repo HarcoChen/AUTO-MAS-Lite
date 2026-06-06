@@ -120,6 +120,10 @@ class MaaEndTaskLoader:
             for option_name, option_def in raw_data.get("option", {}).items():
                 self._global_option_defs[option_name] = self._translate(option_def)
 
+            for task in raw_data.get("task", []):
+                if isinstance(task, dict):
+                    task.pop("description", None)
+
             translated_data = self._translate(raw_data)
             for task in translated_data.get("task", []):
                 self._cache_task(task, translated_data)
@@ -196,8 +200,6 @@ class MaaEndTaskLoader:
                 {
                     "name": task.get("name"),
                     "entry": task.get("entry"),
-                    "label": task.get("label", task.get("name")),
-                    "description": task.get("description", ""),
                     "controller": task_controllers,
                     "group": task.get("group", []),
                     "option": task.get("option", []),

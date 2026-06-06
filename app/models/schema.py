@@ -20,8 +20,8 @@
 
 #   Contact: DLmaster_361@163.com
 
-
-from pydantic import BaseModel, Field
+import json
+from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, List, Union, Optional, Literal
 
 
@@ -663,6 +663,20 @@ class MaaEndUserConfig_Task(BaseModel):
         default=None, description="动态任务选项值"
     )
 
+    @field_validator("EnabledTasks", mode="before")
+    @classmethod
+    def parse_enabled_tasks(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("OptionValues", mode="before")
+    @classmethod
+    def parse_option_values(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
 
 class MaaEndUserConfig_Notify(BaseModel):
     Enabled: Optional[bool] = Field(default=None, description="是否启用通知")
@@ -726,6 +740,20 @@ class MaaEndConfig_Task(BaseModel):
     OptionValues: Optional[Dict[str, Dict[str, Any]]] = Field(
         default=None, description="动态任务选项值"
     )
+
+    @field_validator("EnabledTasks", mode="before")
+    @classmethod
+    def parse_enabled_tasks(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("OptionValues", mode="before")
+    @classmethod
+    def parse_option_values(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
 
 
 class MaaEndConfig(BaseModel):

@@ -300,6 +300,9 @@
           v-if="isPresetController"
           :form-data="maaEndConfig"
           :loading="pageLoading"
+          :script-id="scriptId"
+          :schema-data="maaEndSchema"
+          :schema-loading="maaEndSchemaLoading"
           mode="简洁"
           source="script"
           :controller-type="maaEndConfig.Game.ControllerType"
@@ -307,7 +310,7 @@
           @save-batch="handleTaskChanges"
         />
         <a-alert
-          v-else
+          v-else-if="!maaEndSchemaLoading"
           message="当前控制器暂不支持 MaaEnd 预设模式，用户仅可使用自定义模式。"
           type="info"
           show-icon
@@ -456,13 +459,6 @@ const rules = {
   path: [{ required: true, message: '请选择 MaaEnd 路径', trigger: 'blur' }],
 }
 
-const controllerOptions = [
-  { label: '电脑端-通用', value: 'Win32-Window' },
-  { label: '电脑端-后台', value: 'Win32-Window-Background' },
-  { label: '电脑端-前台', value: 'Win32-Front' },
-  { label: '安卓端', value: 'ADB' },
-]
-
 const booleanOptions = [
   { label: '是', value: true },
   { label: '否', value: false },
@@ -472,12 +468,40 @@ const emulatorLoading = ref(false)
 const emulatorDeviceLoading = ref(false)
 const emulatorOptions = ref<ComboBoxItem[]>([])
 const emulatorDeviceOptions = ref<ComboBoxItem[]>([])
+const maaEndSchemaLoading = ref(false)
+const maaEndSchema = ref<Record<string, any> | null>(null)
+const controllerOptions = ref<Array<{ label: string; value: string }>>([])
 
-const isWinController = computed(() => maaEndConfig.Game.ControllerType !== 'ADB')
-const isPresetController = computed(
-  () =>
-    maaEndConfig.Game.ControllerType === 'Win32-Window' ||
-    maaEndConfig.Game.ControllerType === 'Win32-Front'
+const getControllerOptions = (
+  controllers: Array<Record<string, any>>,
+  currentController: MaaEndScriptConfig['Game']['ControllerType']
+) => {
+  const options = controllers
+    .filter(item => ['win32', 'adb'].includes(String(item.type || '').toLowerCase()))
+    .map(item => ({
+      label: item.label || item.name,
+      value: item.name,
+    }))
+
+  if (
+    currentController &&
+    String(currentController).startsWith('Win32') &&
+    !options.some(item => item.value === currentController)
+  ) {
+    options.unshift({
+      label: `兼容旧配置：${currentController}`,
+      value: currentController,
+    })
+  }
+
+  return options
+}
+
+const isWinController = computed(() =>
+  String(maaEndConfig.Game.ControllerType || '').toLowerCase().startsWith('win32')
+)
+const isPresetController = computed(() =>
+  controllerOptions.value.some(item => item.value === maaEndConfig.Game.ControllerType)
 )
 const showManualEmulatorIndexInput = computed(
   () =>
@@ -514,6 +538,26 @@ const refreshScript = async () => {
   if (!scriptDetail) return
   applyMaaEndConfig(scriptDetail.config as MaaEndScriptConfig)
   formData.name = scriptDetail.name
+}
+
+const loadMaaEndSchema = async () => {
+  maaEndSchemaLoading.value = true
+  try {
+    const response = await Service.getMaaendAvailableTasksApiScriptsMaaendTasksAvailablePost({
+      scriptId,
+    })
+    maaEndSchema.value = response.data || null
+    controllerOptions.value = getControllerOptions(
+      response.data?.controllers || [],
+      maaEndConfig.Game.ControllerType
+    )
+  } catch (error) {
+    maaEndSchema.value = null
+    controllerOptions.value = getControllerOptions([], maaEndConfig.Game.ControllerType)
+    console.error('Failed to load MaaEnd schema', error)
+  } finally {
+    maaEndSchemaLoading.value = false
+  }
 }
 
 const loadEmulatorOptions = async () => {
@@ -564,6 +608,7 @@ const loadScript = async () => {
     formData.type = scriptDetail.type
     formData.name = scriptDetail.name
     applyMaaEndConfig(scriptDetail.config as MaaEndScriptConfig)
+    await loadMaaEndSchema()
 
     if (maaEndConfig.Game.EmulatorId) {
       await loadEmulatorDeviceOptions(maaEndConfig.Game.EmulatorId)
@@ -576,7 +621,16 @@ const loadScript = async () => {
 const handleTaskChange = async (key: string, value: unknown) => {
   const [, taskKey] = key.split('.')
   if (!taskKey) return
-  await handleChange('Task', taskKey, value)
+  if (isInitializing.value || isSaving.value) return
+
+  isSaving.value = true
+  try {
+    await updateScript(scriptId, {
+      Task: { [taskKey]: value },
+    })
+  } finally {
+    isSaving.value = false
+  }
 }
 
 const handleTaskChanges = async (changes: Array<{ key: string; value: unknown }>) => {
@@ -593,10 +647,7 @@ const handleTaskChanges = async (changes: Array<{ key: string; value: unknown }>
 
   isSaving.value = true
   try {
-    const success = await updateScript(scriptId, { Task: payload })
-    if (success) {
-      await refreshScript()
-    }
+    await updateScript(scriptId, { Task: payload })
   } finally {
     isSaving.value = false
   }
@@ -631,6 +682,7 @@ const handleControllerTypeChange = async (value: MaaEndScriptConfig['Game']['Con
     const success = await updateScript(scriptId, { Game: gamePayload })
     if (success) {
       await refreshScript()
+      await loadMaaEndSchema()
     }
   } finally {
     isSaving.value = false
@@ -670,6 +722,7 @@ const selectMaaEndPath = async () => {
   if (!path) return
   maaEndConfig.Info.Path = path
   await handleChange('Info', 'Path', path)
+  await loadMaaEndSchema()
 }
 
 const selectGamePath = async () => {
