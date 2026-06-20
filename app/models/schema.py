@@ -755,6 +755,9 @@ class MaaEndUserConfig_Task(BaseModel):
     AutoUseSpMedicationUseCount: Optional[int] = Field(
         default=None, ge=1, le=15, description="应急理智加强剂使用次数"
     )
+    IfAutoCollectDailyDistribution: Optional[bool] = Field(
+        default=None, description="是否将自动采集路线均匀分配到一周"
+    )
     IfSanity: Optional[bool] = Field(default=None, description="理智任务")
     IfAutoUseSpMedication: Optional[bool] = Field(
         default=None, description="应急理智加强剂"

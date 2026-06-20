@@ -155,6 +155,7 @@ const getDefaultMaaEndUserData = () => ({
     AutoEssenceSpecifiedLocation: 'VFTheHub',
     AutoUseSpMedicationSelectMode: 'UseRegularSpMedicationTime',
     AutoUseSpMedicationUseCount: 1,
+    IfAutoCollectDailyDistribution: false,
     IfSanity: true,
     IfAutoUseSpMedication: true,
     IfDijiangRewards: true,

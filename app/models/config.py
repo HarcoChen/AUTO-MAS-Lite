@@ -132,6 +132,10 @@ def init_maaend_task_config(config) -> None:
         MAAEND_SP_MEDICATION_DEFAULTS["AutoUseSpMedicationUseCount"],
         RangeValidator(1, 15),
     )
+    ## 是否将自动采集路线均匀分配到一周
+    config.Task_IfAutoCollectDailyDistribution = ConfigItem(
+        "Task", "IfAutoCollectDailyDistribution", False, BoolValidator()
+    )
 
     for task_name in MAAEND_TASKS:
         legacy_name = (

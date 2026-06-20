@@ -125,6 +125,7 @@ export type MaaEndTaskConfig = MaaEndTaskSwitchConfig & {
   AutoEssenceSpecifiedLocation: AutoEssenceLocation
   AutoUseSpMedicationSelectMode: SpMedicationMode
   AutoUseSpMedicationUseCount: number
+  IfAutoCollectDailyDistribution: boolean
 }
 
 // MaaEnd脚本配置

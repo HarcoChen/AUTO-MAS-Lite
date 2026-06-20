@@ -161,6 +161,26 @@
         </a-form-item>
       </a-col>
     </a-row>
+
+    <a-row v-if="showAutoCollectDetail" :gutter="24">
+      <a-col :span="12">
+        <a-form-item>
+          <template #label>
+            <a-tooltip title="按东四区星期将 MaaEnd 中已选的采集路线均匀分配，每天仅执行其中一组">
+              <span class="form-label">
+                均匀分配自动采集
+                <QuestionCircleOutlined class="help-icon" />
+              </span>
+            </a-tooltip>
+          </template>
+          <a-switch
+            v-model:checked="formData.Task.IfAutoCollectDailyDistribution"
+            :disabled="optionControlsDisabled"
+            @change="handleAutoCollectDistributionChange"
+          />
+        </a-form-item>
+      </a-col>
+    </a-row>
   </div>
 </template>
 
@@ -230,6 +250,9 @@ const activeGroupHasSanity = computed(
 )
 const activeGroupHasSpMedication = computed(
   () => activeGroup.value?.tasks.some(task => task.name === 'AutoUseSpMedication') ?? false
+)
+const activeGroupHasAutoCollect = computed(
+  () => activeGroup.value?.tasks.some(task => task.name === 'AutoCollect') ?? false
 )
 
 const controlsDisabled = computed(() => {
@@ -322,6 +345,13 @@ const showSpMedicationDetail = computed(
     activeGroupHasSpMedication.value &&
     supportedTaskNames.value.has('AutoUseSpMedication') &&
     isTaskEnabled('AutoUseSpMedication')
+)
+const showAutoCollectDetail = computed(
+  () =>
+    props.ifQuickConfig &&
+    activeGroupHasAutoCollect.value &&
+    supportedTaskNames.value.has('AutoCollect') &&
+    isTaskEnabled('AutoCollect')
 )
 const usesRegularSpMedicationCount = computed(
   () => formData.Task.AutoUseSpMedicationSelectMode === 'UseRegularSpMedicationTime'
@@ -431,6 +461,13 @@ const handleSpMedicationCountChange = (value: number | null) => {
   const count = Math.min(15, Math.max(1, Number(value) || 1))
   formData.Task.AutoUseSpMedicationUseCount = count
   emitSave('Task.AutoUseSpMedicationUseCount', count)
+}
+
+const handleAutoCollectDistributionChange = (value: boolean | string | number) => {
+  if (optionControlsDisabled.value) return
+  const enabled = Boolean(value)
+  formData.Task.IfAutoCollectDailyDistribution = enabled
+  emitSave('Task.IfAutoCollectDailyDistribution', enabled)
 }
 
 watch(

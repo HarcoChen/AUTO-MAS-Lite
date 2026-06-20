@@ -330,6 +330,25 @@ MAAEND_SP_MEDICATION_DEFAULTS = {
 }
 """MaaEnd应急理智加强剂字段默认值"""
 
+MAAEND_AUTO_COLLECT_SCHEDULE_OPTIONS = (
+    "AutoCollectScheduleMonday",
+    "AutoCollectScheduleTuesday",
+    "AutoCollectScheduleWednesday",
+    "AutoCollectScheduleThursday",
+    "AutoCollectScheduleFriday",
+    "AutoCollectScheduleSaturday",
+    "AutoCollectScheduleSunday",
+)
+"""MaaEnd自动采集全周日程选项"""
+
+MAAEND_AUTO_COLLECT_ROUTE_OPTIONS = {
+    "AutoCollectRoutes": tuple(f"Route{index}" for index in range(1, 15)),
+    "AutoCollectCommonRoutes": tuple(
+        f"CommonRoute{index}" for index in range(1, 9)
+    ),
+}
+"""MaaEnd自动采集路线选项"""
+
 EMULATOR_PATH_BOOK = {
     "mumu": {
         "name": "MuMu模拟器",

@@ -700,6 +700,10 @@ export function useScriptApi() {
                           maaEndUserData.Task?.AutoUseSpMedicationUseCount != null
                             ? maaEndUserData.Task.AutoUseSpMedicationUseCount
                             : 1,
+                        IfAutoCollectDailyDistribution:
+                          maaEndUserData.Task?.IfAutoCollectDailyDistribution != null
+                            ? maaEndUserData.Task.IfAutoCollectDailyDistribution
+                            : false,
                         IfSanity:
                           maaEndUserData.Task?.IfSanity != null
                             ? maaEndUserData.Task.IfSanity

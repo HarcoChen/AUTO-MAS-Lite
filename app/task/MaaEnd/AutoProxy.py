@@ -36,7 +36,14 @@ from app.models.emulator import DeviceBase, DeviceInfo
 from app.services import Notify, System
 from app.utils import get_logger, LogMonitor, ProcessManager, is_process_running
 from app.tools import skland_sign_in
-from app.utils.constants import UTC4, UTC8, MAAEND_SANITY_TASK_FIELDS, MAAEND_TASKS
+from app.utils.constants import (
+    UTC4,
+    UTC8,
+    MAAEND_AUTO_COLLECT_ROUTE_OPTIONS,
+    MAAEND_AUTO_COLLECT_SCHEDULE_OPTIONS,
+    MAAEND_SANITY_TASK_FIELDS,
+    MAAEND_TASKS,
+)
 from .tools import login, push_notification
 from app.task.general.tools import execute_script_task
 
@@ -48,6 +55,15 @@ _MAAEND_STOP_PATTERNS = (
     "任务完成: __MXU_KILLPROC__",
     "任务完成: StopTask",
 )
+
+
+def _select_daily_routes(routes: list[str], weekday: int) -> list[str]:
+    """按星期将路线均匀切分为七组"""
+
+    daily_count, extra_count = divmod(len(routes), 7)
+    start = weekday * daily_count + min(weekday, extra_count)
+    end = start + daily_count + (1 if weekday < extra_count else 0)
+    return routes[start:end]
 
 
 class AutoProxyTask(TaskExecuteBase):
@@ -665,6 +681,39 @@ class AutoProxyTask(TaskExecuteBase):
                     }
                 else:
                     task["optionValues"].pop("UseRegularSpMedicationTime", None)
+
+            if (
+                if_quick_config
+                and task["taskName"] == "AutoCollect"
+                and self.cur_user_config.get(
+                    "Task", "IfAutoCollectDailyDistribution"
+                )
+            ):
+                option_values = task.setdefault("optionValues", {})
+                option_values["AutoCollectSchedule"] = {
+                    "type": "checkbox",
+                    "caseNames": list(MAAEND_AUTO_COLLECT_SCHEDULE_OPTIONS),
+                }
+                weekday = datetime.now(tz=UTC4).weekday()
+                for option_name, default_routes in (
+                    MAAEND_AUTO_COLLECT_ROUTE_OPTIONS.items()
+                ):
+                    option_value = option_values.get(option_name)
+                    if (
+                        isinstance(option_value, dict)
+                        and option_value.get("type") == "checkbox"
+                        and isinstance(option_value.get("caseNames"), list)
+                    ):
+                        selected_names = set(option_value["caseNames"])
+                        selected_routes = [
+                            route for route in default_routes if route in selected_names
+                        ]
+                    else:
+                        selected_routes = list(default_routes)
+                    option_values[option_name] = {
+                        "type": "checkbox",
+                        "caseNames": _select_daily_routes(selected_routes, weekday),
+                    }
 
             if (
                 if_quick_config
