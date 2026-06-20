@@ -266,7 +266,7 @@ MAAEND_TASK_GROUPS = {
         "tasks": (
             ("VisitFriends", "拜访好友"),
             ("CreditShoppingN2", "信用点购物"),
-            ("SeizeEntrustTask", "抢委托"),
+            ("SeizeDeliveryJobs", "抢委托送货"),
         ),
     },
     "Frontend": {

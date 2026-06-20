@@ -461,6 +461,25 @@ class AutoProxyTask(TaskExecuteBase):
                 "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
             )
 
+        maaend_source_config = json.loads(
+            maaend_config_file.read_text(encoding="utf-8")
+        )
+        task_name_migrated = False
+        for instance in maaend_source_config.get("instances", []):
+            for task in instance.get("tasks", []):
+                if task.get("taskName") == "SeizeEntrustTask":
+                    task["taskName"] = "SeizeDeliveryJobs"
+                    task_name_migrated = True
+        if task_name_migrated:
+            maaend_config_tmp = maaend_config_file.with_name(
+                f"{maaend_config_file.name}.tmp"
+            )
+            maaend_config_tmp.write_text(
+                json.dumps(maaend_source_config, ensure_ascii=False, indent=4),
+                encoding="utf-8",
+            )
+            maaend_config_tmp.replace(maaend_config_file)
+
         shutil.rmtree(self.maaend_set_path, ignore_errors=True)
         shutil.copytree(maaend_config_path, self.maaend_set_path)
         maaend_set = json.loads(

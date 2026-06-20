@@ -92,7 +92,7 @@ export const MAAEND_TASK_GROUPS = [
     tasks: [
       { name: 'VisitFriends', label: '🤝 拜访好友' },
       { name: 'CreditShoppingN2', label: '🛍️ 信用点购物' },
-      { name: 'SeizeEntrustTask', label: '🌆 抢委托' },
+      { name: 'SeizeDeliveryJobs', label: '🏍️ 抢委托送货' },
     ],
   },
   {

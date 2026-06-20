@@ -62,7 +62,7 @@
         },
         {
           "id": "mwg371e",
-          "taskName": "SeizeEntrustTask",
+          "taskName": "SeizeDeliveryJobs",
           "enabled": true,
           "optionValues": {}
         },

@@ -736,9 +736,9 @@ export function useScriptApi() {
                           maaEndUserData.Task?.IfCreditShoppingN2 != null
                             ? maaEndUserData.Task.IfCreditShoppingN2
                             : true,
-                        IfSeizeEntrustTask:
-                          maaEndUserData.Task?.IfSeizeEntrustTask != null
-                            ? maaEndUserData.Task.IfSeizeEntrustTask
+                        IfSeizeDeliveryJobs:
+                          maaEndUserData.Task?.IfSeizeDeliveryJobs != null
+                            ? maaEndUserData.Task.IfSeizeDeliveryJobs
                             : true,
                         IfAutoEcoFarm:
                           maaEndUserData.Task?.IfAutoEcoFarm != null

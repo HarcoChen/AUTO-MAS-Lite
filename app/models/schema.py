@@ -21,7 +21,7 @@
 #   Contact: DLmaster_361@163.com
 
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Any, Dict, List, Union, Optional, Literal
 
 
@@ -705,6 +705,18 @@ class MaaEndUserConfig_Info(BaseModel):
 
 
 class MaaEndUserConfig_Task(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_task_names(cls, data: Any) -> Any:
+        """兼容旧版 MaaEnd 任务字段名"""
+
+        if not isinstance(data, dict):
+            return data
+        if "IfSeizeDeliveryJobs" not in data and "IfSeizeEntrustTask" in data:
+            data = dict(data)
+            data["IfSeizeDeliveryJobs"] = data["IfSeizeEntrustTask"]
+        return data
+
     SanityTaskType: Optional[
         Literal["OperatorProgression", "WeaponProgression", "CrisisDrills", "Essence"]
     ] = Field(default=None, description="理智任务类型")
@@ -754,7 +766,7 @@ class MaaEndUserConfig_Task(BaseModel):
     IfAutoStockStaple: Optional[bool] = Field(default=None, description="购买稳定物资")
     IfVisitFriends: Optional[bool] = Field(default=None, description="拜访好友")
     IfCreditShoppingN2: Optional[bool] = Field(default=None, description="信用点购物")
-    IfSeizeEntrustTask: Optional[bool] = Field(default=None, description="抢委托")
+    IfSeizeDeliveryJobs: Optional[bool] = Field(default=None, description="抢委托送货")
     IfAutoEcoFarm: Optional[bool] = Field(default=None, description="生态农场")
     IfAutoSell: Optional[bool] = Field(default=None, description="售卖弹性物资")
     IfEnvironmentMonitoring: Optional[bool] = Field(

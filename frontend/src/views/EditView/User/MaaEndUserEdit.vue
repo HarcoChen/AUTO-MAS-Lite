@@ -164,7 +164,7 @@ const getDefaultMaaEndUserData = () => ({
     IfAutoStockStaple: true,
     IfVisitFriends: true,
     IfCreditShoppingN2: true,
-    IfSeizeEntrustTask: true,
+    IfSeizeDeliveryJobs: true,
     IfAutoEcoFarm: true,
     IfAutoSell: true,
     IfEnvironmentMonitoring: true,

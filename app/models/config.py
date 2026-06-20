@@ -134,10 +134,19 @@ def init_maaend_task_config(config) -> None:
     )
 
     for task_name in MAAEND_TASKS:
+        legacy_name = (
+            "IfSeizeEntrustTask" if task_name == "SeizeDeliveryJobs" else None
+        )
         setattr(
             config,
             f"Task_If{task_name}",
-            ConfigItem("Task", f"If{task_name}", True, BoolValidator()),
+            ConfigItem(
+                "Task",
+                f"If{task_name}",
+                True,
+                BoolValidator(),
+                legacy_name=legacy_name,
+            ),
         )
 
 """
