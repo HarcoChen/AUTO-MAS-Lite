@@ -35,6 +35,13 @@ export const AUTO_ESSENCE_LOCATION_OPTIONS = [
 
 export type AutoEssenceLocation = (typeof AUTO_ESSENCE_LOCATION_OPTIONS)[number]['value']
 
+export const SP_MEDICATION_MODE_OPTIONS = [
+  { label: '指定次数', value: 'UseRegularSpMedicationTime' },
+  { label: '用完即将过期药（最多 15 个）', value: 'UseAllExpireSoonSpMedication' },
+] as const
+
+export type SpMedicationMode = (typeof SP_MEDICATION_MODE_OPTIONS)[number]['value']
+
 export const PROTOCOL_SPACE_TASK_OPTIONS_MAP = {
   OperatorProgression: [
     { label: '干员经验', value: 'OperatorEXP', rewards: true },

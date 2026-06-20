@@ -116,6 +116,51 @@
         </a-form-item>
       </a-col>
     </a-row>
+
+    <a-row v-if="showSpMedicationDetail" :gutter="24">
+      <a-col :span="12">
+        <a-form-item>
+          <template #label>
+            <a-tooltip title="选择按次数使用，或用完所有 7 天内过期的应急理智加强剂">
+              <span class="form-label">
+                吃理智药逻辑
+                <QuestionCircleOutlined class="help-icon" />
+              </span>
+            </a-tooltip>
+          </template>
+          <a-select
+            v-model:value="formData.Task.AutoUseSpMedicationSelectMode"
+            :options="SP_MEDICATION_MODE_OPTIONS"
+            :disabled="optionControlsDisabled"
+            size="large"
+            @change="handleSpMedicationModeChange"
+          />
+        </a-form-item>
+      </a-col>
+
+      <a-col v-if="usesRegularSpMedicationCount" :span="12">
+        <a-form-item>
+          <template #label>
+            <a-tooltip title="需要使用的应急理智加强剂数量，范围为 1-15">
+              <span class="form-label">
+                吃理智药次数
+                <QuestionCircleOutlined class="help-icon" />
+              </span>
+            </a-tooltip>
+          </template>
+          <a-input-number
+            v-model:value="formData.Task.AutoUseSpMedicationUseCount"
+            :min="1"
+            :max="15"
+            :precision="0"
+            :disabled="optionControlsDisabled"
+            size="large"
+            style="width: 100%"
+            @change="handleSpMedicationCountChange"
+          />
+        </a-form-item>
+      </a-col>
+    </a-row>
   </div>
 </template>
 
@@ -132,9 +177,11 @@ import {
   PROTOCOL_SPACE_TASK_TOOLTIP_MAP,
   REWARD_OPTIONS,
   SANITY_TASK_TYPE_OPTIONS,
+  SP_MEDICATION_MODE_OPTIONS,
   type MaaEndTaskSwitch,
   type ProtocolSpaceTab,
   type SanityTaskType,
+  type SpMedicationMode,
 } from '@/utils/maaEndProtocolSpace'
 
 interface FieldChange {
@@ -180,6 +227,9 @@ const activeGroup = computed(
 )
 const activeGroupHasSanity = computed(
   () => activeGroup.value?.tasks.some(task => task.name === 'Sanity') ?? false
+)
+const activeGroupHasSpMedication = computed(
+  () => activeGroup.value?.tasks.some(task => task.name === 'AutoUseSpMedication') ?? false
 )
 
 const controlsDisabled = computed(() => {
@@ -266,6 +316,16 @@ const showSanityDetail = computed(
     isTaskEnabled('Sanity')
 )
 const showRewardGroupSelect = computed(() => showSanityDetail.value && rewardGroupEnabled.value)
+const showSpMedicationDetail = computed(
+  () =>
+    props.ifQuickConfig &&
+    activeGroupHasSpMedication.value &&
+    supportedTaskNames.value.has('AutoUseSpMedication') &&
+    isTaskEnabled('AutoUseSpMedication')
+)
+const usesRegularSpMedicationCount = computed(
+  () => formData.Task.AutoUseSpMedicationSelectMode === 'UseRegularSpMedicationTime'
+)
 
 const handleTaskSwitchChange = (taskName: MaaEndTaskSwitch) => {
   emitSave(`Task.${taskSwitchKey(taskName)}`, formData.Task[taskSwitchKey(taskName)])
@@ -358,6 +418,19 @@ const handleTaskOptionChange = () => {
   }
 
   emitSaveBatch(changes)
+}
+
+const handleSpMedicationModeChange = (value: SpMedicationMode) => {
+  if (optionControlsDisabled.value) return
+  formData.Task.AutoUseSpMedicationSelectMode = value
+  emitSave('Task.AutoUseSpMedicationSelectMode', value)
+}
+
+const handleSpMedicationCountChange = (value: number | null) => {
+  if (optionControlsDisabled.value) return
+  const count = Math.min(15, Math.max(1, Number(value) || 1))
+  formData.Task.AutoUseSpMedicationUseCount = count
+  emitSave('Task.AutoUseSpMedicationUseCount', count)
 }
 
 watch(

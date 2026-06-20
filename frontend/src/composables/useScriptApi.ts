@@ -692,6 +692,14 @@ export function useScriptApi() {
                           maaEndUserData.Task?.AutoEssenceSpecifiedLocation != null
                             ? maaEndUserData.Task.AutoEssenceSpecifiedLocation
                             : 'VFTheHub',
+                        AutoUseSpMedicationSelectMode:
+                          maaEndUserData.Task?.AutoUseSpMedicationSelectMode != null
+                            ? maaEndUserData.Task.AutoUseSpMedicationSelectMode
+                            : 'UseRegularSpMedicationTime',
+                        AutoUseSpMedicationUseCount:
+                          maaEndUserData.Task?.AutoUseSpMedicationUseCount != null
+                            ? maaEndUserData.Task.AutoUseSpMedicationUseCount
+                            : 1,
                         IfSanity:
                           maaEndUserData.Task?.IfSanity != null
                             ? maaEndUserData.Task.IfSanity

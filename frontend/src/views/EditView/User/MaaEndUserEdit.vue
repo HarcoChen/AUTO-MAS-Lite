@@ -153,6 +153,8 @@ const getDefaultMaaEndUserData = () => ({
     CrisisDrills: 'AdvancedProgression1',
     RewardsSetOption: 'RewardsSetA',
     AutoEssenceSpecifiedLocation: 'VFTheHub',
+    AutoUseSpMedicationSelectMode: 'UseRegularSpMedicationTime',
+    AutoUseSpMedicationUseCount: 1,
     IfSanity: true,
     IfAutoUseSpMedication: true,
     IfDijiangRewards: true,

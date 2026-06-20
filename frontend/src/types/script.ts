@@ -16,6 +16,7 @@ import type {
   ProtocolSpaceTaskValue,
   RewardSetOption,
   SanityTaskType,
+  SpMedicationMode,
 } from '@/utils/maaEndProtocolSpace'
 
 export type ScriptType = 'MAA' | 'General' | 'Okww' | 'SRC' | 'MaaEnd' | 'M9A' | 'HSR'
@@ -122,6 +123,8 @@ export type MaaEndTaskConfig = MaaEndTaskSwitchConfig & {
   CrisisDrills: ProtocolSpaceTaskValue
   RewardsSetOption: RewardSetOption
   AutoEssenceSpecifiedLocation: AutoEssenceLocation
+  AutoUseSpMedicationSelectMode: SpMedicationMode
+  AutoUseSpMedicationUseCount: number
 }
 
 // MaaEnd脚本配置

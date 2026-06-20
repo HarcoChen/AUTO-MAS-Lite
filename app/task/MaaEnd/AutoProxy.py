@@ -624,6 +624,29 @@ class AutoProxyTask(TaskExecuteBase):
             if not task["enabled"]:
                 continue
 
+            if if_quick_config and task["taskName"] == "AutoUseSpMedication":
+                task.setdefault("optionValues", {})
+                medication_mode = self.cur_user_config.get(
+                    "Task", "AutoUseSpMedicationSelectMode"
+                )
+                task["optionValues"]["AutoUseSpMedicationSelectMode"] = {
+                    "type": "select",
+                    "caseName": medication_mode,
+                }
+                if medication_mode == "UseRegularSpMedicationTime":
+                    task["optionValues"]["UseRegularSpMedicationTime"] = {
+                        "type": "input",
+                        "values": {
+                            "UseCount": str(
+                                self.cur_user_config.get(
+                                    "Task", "AutoUseSpMedicationUseCount"
+                                )
+                            )
+                        },
+                    }
+                else:
+                    task["optionValues"].pop("UseRegularSpMedicationTime", None)
+
             if (
                 if_quick_config
                 and task["taskName"] == target_task_name

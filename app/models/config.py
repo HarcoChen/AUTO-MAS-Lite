@@ -38,6 +38,8 @@ from app.utils.constants import (
     MAAEND_SANITY_TASK_DETAIL_LABELS,
     MAAEND_SANITY_TASK_FIELDS,
     MAAEND_SANITY_TASK_LABELS,
+    MAAEND_SP_MEDICATION_DEFAULTS,
+    MAAEND_SP_MEDICATION_MODES,
     MAAEND_STAGE_WITH_AB,
     MAAEND_TASKS,
     MAAEND_SANITY_TASK_TYPES,
@@ -115,6 +117,20 @@ def init_maaend_task_config(config) -> None:
         "AutoEssenceSpecifiedLocation",
         MAAEND_SANITY_TASK_DEFAULTS["AutoEssenceSpecifiedLocation"],
         OptionsValidator(list(MAAEND_AUTO_ESSENCE_LOCATION_OPTIONS)),
+    )
+    ## 应急理智加强剂使用模式
+    config.Task_AutoUseSpMedicationSelectMode = ConfigItem(
+        "Task",
+        "AutoUseSpMedicationSelectMode",
+        MAAEND_SP_MEDICATION_DEFAULTS["AutoUseSpMedicationSelectMode"],
+        OptionsValidator(list(MAAEND_SP_MEDICATION_MODES)),
+    )
+    ## 应急理智加强剂使用次数
+    config.Task_AutoUseSpMedicationUseCount = ConfigItem(
+        "Task",
+        "AutoUseSpMedicationUseCount",
+        MAAEND_SP_MEDICATION_DEFAULTS["AutoUseSpMedicationUseCount"],
+        RangeValidator(1, 15),
     )
 
     for task_name in MAAEND_TASKS:

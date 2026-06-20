@@ -318,6 +318,18 @@ MAAEND_SANITY_TASK_FIELDS = (
 )
 """MaaEnd理智任务字段列表"""
 
+MAAEND_SP_MEDICATION_MODES = (
+    "UseRegularSpMedicationTime",
+    "UseAllExpireSoonSpMedication",
+)
+"""MaaEnd应急理智加强剂使用模式"""
+
+MAAEND_SP_MEDICATION_DEFAULTS = {
+    "AutoUseSpMedicationSelectMode": "UseRegularSpMedicationTime",
+    "AutoUseSpMedicationUseCount": 1,
+}
+"""MaaEnd应急理智加强剂字段默认值"""
+
 EMULATOR_PATH_BOOK = {
     "mumu": {
         "name": "MuMu模拟器",
