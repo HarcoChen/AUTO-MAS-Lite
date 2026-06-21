@@ -37,7 +37,7 @@ from app.services import Notify, System
 from app.utils import get_logger, LogMonitor, ProcessManager, is_process_running
 from app.tools import skland_sign_in
 from app.utils.constants import UTC4, UTC8, MAAEND_SANITY_TASK_FIELDS, MAAEND_TASKS
-from .tools import login, push_notification
+from .tools import push_notification
 from app.task.general.tools import execute_script_task
 
 logger = get_logger("MaaEnd 自动代理")
@@ -48,7 +48,6 @@ _MAAEND_STOP_PATTERNS = (
     "任务完成: __MXU_KILLPROC__",
     "任务完成: StopTask",
 )
-
 
 class AutoProxyTask(TaskExecuteBase):
     """MaaEnd 自动代理模式"""
@@ -99,6 +98,17 @@ class AutoProxyTask(TaskExecuteBase):
         if not config_file.exists():
             self.cur_user_item.status = "异常"
             return "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
+
+        try:
+            maaend_config = json.loads(config_file.read_text(encoding="utf-8"))
+            instances = maaend_config.get("instances")
+            if not isinstance(instances, list) or len(instances) == 0:
+                raise ValueError("未找到可运行实例")
+            if not any(isinstance(instance.get("tasks"), list) for instance in instances):
+                raise ValueError("未找到任务配置")
+        except Exception as e:
+            self.cur_user_item.status = "异常"
+            return f"MaaEnd 配置文件无效: {e}"
 
         return "Pass"
 
@@ -230,7 +240,23 @@ class AutoProxyTask(TaskExecuteBase):
             controller_type = self.script_config.get("Game", "ControllerType")
             try:
                 if self.emulator_manager is None:
-                    if controller_type != "ADB" and is_process_running("Endfield.exe"):
+                    restart_game = (
+                        self.script_config.get("Run", "TaskTransitionMethod")
+                        == "ExitGame"
+                    )
+                    if (
+                        controller_type != "ADB"
+                        and restart_game
+                        and is_process_running("Endfield.exe")
+                    ):
+                        logger.info("账号切换方法为重启终末地，正在关闭已有游戏进程")
+                        await self.game_process_manager.kill()
+                        await System.kill_process(self.script_config.get("Game", "Path"))
+                    if (
+                        controller_type != "ADB"
+                        and not restart_game
+                        and is_process_running("Endfield.exe")
+                    ):
                         logger.info(
                             "检测到终末地客户端进程已在运行，跳过由 MAS 重复启动游戏"
                         )
@@ -257,21 +283,10 @@ class AutoProxyTask(TaskExecuteBase):
                 await self.handle_pre_maaend_error("模拟器启动失败", e)
                 continue
 
+            logger.info("跳过 AUTO-MAS 登录，交由 MaaEnd 账号切换任务处理")
             self.script_info.log = (
-                "正在启动游戏...\n游戏启动成功\n正在登录「明日方舟：终末地」..."
+                "正在启动游戏...\n游戏启动成功\n账号切换将由 MaaEnd 任务处理"
             )
-
-            if self.cur_user_config.get("Info", "Id") == "" or await login(
-                self.cur_user_config.get("Info", "Id"),
-                self.cur_user_config.get("Info", "Password"),
-                emulator_info,
-            ):
-                logger.info(f"用户 {self.cur_user_item.user_id} 登录成功")
-            else:
-                await self.handle_pre_maaend_error("「明日方舟：终末地」登录失败")
-                continue
-
-            self.script_info.log = "正在启动游戏...\n游戏启动成功\n正在登录「明日方舟：终末地」\n「明日方舟：终末地」登录成功"
 
             await self.set_maaend(emulator_info)
 
@@ -538,6 +553,39 @@ class AutoProxyTask(TaskExecuteBase):
             else:
                 maaend_i18n[task_definition["name"]] = task_definition["label"]
 
+        account_id = self.cur_user_config.get("Info", "Id")
+        if account_id:
+            if len(account_id) != 11:
+                logger.warning(
+                    f"用户 {self.cur_user_item.name} 的终末地账号不是 11 位手机号，已跳过账号切换任务注入"
+                )
+            else:
+                account_switch_task = None
+                for task in maaend_tasks:
+                    if task.get("taskName") == "AccountSwitch":
+                        account_switch_task = task
+                        break
+                if account_switch_task is None:
+                    account_switch_task = {
+                        "id": str(uuid.uuid4())[:7],
+                        "taskName": "AccountSwitch",
+                        "enabled": True,
+                        "optionValues": {},
+                    }
+                    maaend_tasks.insert(0, account_switch_task)
+                    logger.info("已注入 MaaEnd 账号切换任务: AccountSwitch")
+                else:
+                    account_switch_task["enabled"] = True
+                    logger.info("已启用 MaaEnd 账号切换任务: AccountSwitch")
+                account_switch_task.setdefault("optionValues", {})[
+                    "AccountSwitchLastFourDigits"
+                ] = {
+                    "type": "input",
+                    "values": {"LastFourDigits": account_id[-4:]},
+                }
+        else:
+            logger.info("用户未配置账号，跳过 MaaEnd 账号切换任务注入")
+
         if_quick_config = self.cur_user_config.get("Info", "IfQuickConfig")
 
         def get_task_book_name(task: dict[str, object]) -> str:
@@ -707,7 +755,7 @@ class AutoProxyTask(TaskExecuteBase):
 
         (self.maaend_set_path / "mxu-MaaEnd.json").write_text(
             json.dumps(maaend_set, ensure_ascii=False, indent=4), encoding="utf-8"
-            )
+        )
         logger.success("MaaEnd 运行参数配置完成: 自动代理")
 
     def has_maaend_local_install_file(self) -> bool:
@@ -772,6 +820,8 @@ class AutoProxyTask(TaskExecuteBase):
             self.cur_user_log.status = "MaaEnd 任务启动失败"
         elif "resolution check failed" in log or "分辨率不符合要求" in log:
             self.cur_user_log.status = "游戏分辨率设置错误，请重设分辨率比例为16:9"
+        elif "任务失败: AccountSwitch" in log:
+            self.cur_user_log.status = "MaaEnd 账号切换失败"
         elif (
             any(stop_pattern in log for stop_pattern in _MAAEND_STOP_PATTERNS)
             or not await self.maaend_process_manager.is_running()

@@ -31,7 +31,6 @@ from app.models.emulator import DeviceBase
 from app.services import System
 from app.utils import get_logger, ProcessManager
 from app.utils.constants import UTC4
-from .tools import login
 
 logger = get_logger("MaaEnd 人工检查")
 
@@ -151,39 +150,10 @@ class ManualReviewTask(TaskExecuteBase):
                     break
                 continue
 
-            self.script_info.log = (
-                "正在启动游戏...\n游戏启动成功\n正在登录「明日方舟：终末地」..."
-            )
-            if self.cur_user_config.get("Info", "Id") == "" or await login(
-                self.cur_user_config.get("Info", "Id"),
-                self.cur_user_config.get("Info", "Password"),
-                emulator_info,
-            ):
-                self.run_book["SignIn"] = True
-                break
-            else:
-                logger.error(
-                    f"用户: {self.cur_user_item.user_id} - 「明日方舟：终末地」登录失败"
-                )
-                self.script_info.log = "正在启动模拟器\n模拟器已启动，正在登录「明日方舟：终末地」...\n「明日方舟：终末地」登录失败\n正在中止相关程序"
-
-                await self.kill_managed_process()
-
-                uid = str(uuid.uuid4())
-                await Config.send_websocket_message(
-                    id=self.task_info.task_id,
-                    type="Message",
-                    data={
-                        "message_id": uid,
-                        "type": "Question",
-                        "title": "操作提示",
-                        "message": "未能正确登录到「崩坏·星穹铁道」, 是否重试？",
-                        "options": ["是", "否"],
-                    },
-                )
-                result = await self._wait_for_user_response(uid)
-                if not result.get("data", {}).get("choice", False):
-                    break
+            self.script_info.log = "正在启动游戏...\n游戏启动成功\n已跳过登录处理"
+            logger.info("人工排查已跳过 AUTO-MAS 登录")
+            self.run_book["SignIn"] = True
+            break
 
         if self.run_book["SignIn"]:
 

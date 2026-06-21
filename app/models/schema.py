@@ -802,6 +802,9 @@ class MaaEndConfig_Run(BaseModel):
     )
     ProxyTimesLimit: Optional[int] = Field(default=None, description="每日代理次数限制")
     RunTimesLimit: Optional[int] = Field(default=None, description="重试次数限制")
+    TaskTransitionMethod: Optional[Literal["NoAction", "ExitGame"]] = Field(
+        default=None, description="任务切换方式"
+    )
 
 
 class MaaEndConfig_Game(BaseModel):

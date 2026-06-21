@@ -1018,6 +1018,13 @@ class MaaEndConfig(ConfigBase):
         self.Run_RunTimesLimit = ConfigItem(
             "Run", "RunTimesLimit", 3, RangeValidator(1, 9999)
         )
+        ## 任务切换方式
+        self.Run_TaskTransitionMethod = ConfigItem(
+            "Run",
+            "TaskTransitionMethod",
+            "ExitGame",
+            OptionsValidator(["NoAction", "ExitGame"]),
+        )
 
         ## Game ------------------------------------------------------------
         ## 控制器类型

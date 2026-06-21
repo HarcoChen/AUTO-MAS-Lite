@@ -19,8 +19,7 @@
 #   Contact: DLmaster_361@163.com
 
 
-from .login import login
 from .notify import push_notification
 
 
-__all__ = ["login", "push_notification"]
+__all__ = ["push_notification"]

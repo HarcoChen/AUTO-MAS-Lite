@@ -134,6 +134,7 @@ export interface MaaEndScriptConfig {
     RunTimeLimit: number
     ProxyTimesLimit: number
     RunTimesLimit: number
+    TaskTransitionMethod: string
   }
   Game: {
     ControllerType: 'Win32-Front' | 'ADB' | null

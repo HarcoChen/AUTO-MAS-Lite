@@ -339,7 +339,25 @@
             <h3>运行配置</h3>
           </div>
           <a-row :gutter="24">
-            <a-col :span="8">
+            <a-col :span="6">
+              <a-form-item>
+                <template #label>
+                  <span class="form-label">
+                    账号切换方法
+                    <a-tooltip title="切换账号时需要执行的操作">
+                      <QuestionCircleOutlined class="help-icon" />
+                    </a-tooltip>
+                  </span>
+                </template>
+                <a-select
+                  v-model:value="maaEndConfig.Run.TaskTransitionMethod"
+                  size="large"
+                  :options="taskTransitionMethodOptions"
+                  @change="handleChange('Run', 'TaskTransitionMethod', $event)"
+                />
+              </a-form-item>
+            </a-col>
+            <a-col :span="6">
               <a-form-item>
                 <template #label>
                   <span class="form-label">
@@ -361,7 +379,7 @@
                 />
               </a-form-item>
             </a-col>
-            <a-col :span="8">
+            <a-col :span="6">
               <a-form-item>
                 <template #label>
                   <span class="form-label">
@@ -381,7 +399,7 @@
                 />
               </a-form-item>
             </a-col>
-            <a-col :span="8">
+            <a-col :span="6">
               <a-form-item>
                 <template #label>
                   <span class="form-label">
@@ -463,6 +481,7 @@ const maaEndConfig = reactive<MaaEndScriptConfig>({
     RunTimeLimit: 30,
     ProxyTimesLimit: 0,
     RunTimesLimit: 3,
+    TaskTransitionMethod: 'ExitGame',
   },
   Game: {
     ControllerType: 'Win32-Front',
@@ -488,6 +507,11 @@ const controllerOptions = [
 const booleanOptions = [
   { label: '是', value: true },
   { label: '否', value: false },
+]
+
+const taskTransitionMethodOptions = [
+  { label: '重启终末地', value: 'ExitGame' },
+  { label: '直接切换账号', value: 'NoAction' },
 ]
 
 const emulatorLoading = ref(false)
