@@ -742,8 +742,6 @@ class MaaEndUserConfig_Info(BaseModel):
     )
     ScriptAfterTask: Optional[str] = Field(default=None, description="任务后脚本路径")
     Notes: Optional[str] = Field(default=None, description="备注")
-    IfSkland: Optional[bool] = Field(default=None, description="是否启用森空岛签到")
-    SklandToken: Optional[str] = Field(default=None, description="SklandToken")
     Tag: Optional[str] = Field(default=None, description="用户标签信息")
 
 
@@ -821,7 +819,6 @@ class MaaEndUserConfig_Data(BaseModel):
     LastProxyStatus: Optional[Literal["未知", "成功", "失败"]] = Field(
         default=None, description="上次代理状态"
     )
-    LastSklandDate: Optional[str] = Field(default=None, description="上次森空岛签到日期")
     IfPassCheck: Optional[bool] = Field(default=None, description="是否通过检查")
 
 
