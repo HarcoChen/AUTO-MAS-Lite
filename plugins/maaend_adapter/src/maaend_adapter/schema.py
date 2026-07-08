@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -205,15 +205,15 @@ class MaaEndRunConfig(BaseModel):
         max=9999,
         json_schema_extra={"size": "half"},
     )
-    WeeklyOnceTasks: list[str] = PluginField(
-        default_factory=list,
+    WeeklyOnceTasks: str = PluginField(
+        default="[]",
         title="每周仅完成一次的任务",
         ui_type="json",
         json_type="array",
         json_schema_extra={"size": "large"},
     )
-    MonthlyOnceTasks: list[str] = PluginField(
-        default_factory=list,
+    MonthlyOnceTasks: str = PluginField(
+        default="[]",
         title="每月仅完成一次的任务",
         ui_type="json",
         json_type="array",
@@ -316,11 +316,13 @@ class MaaEndUserTaskConfig(BaseModel):
         title="任务预设",
         json_schema_extra={"size": "half"},
     )
-    TaskSnapshot: dict[str, Any] = PluginField(
-        default_factory=dict,
+    TaskSnapshot: str = PluginField(
+        default="{}",
         title="任务快照",
         ui_type="json",
         json_type="object",
+        hidden=True,
+        include_in_schema=False,
         json_schema_extra={"size": "large"},
     )
 
@@ -355,6 +357,8 @@ class MaaEndUserDataConfig(BaseModel):
         default="2000-01-01",
         title="上次代理日期",
         readonly=True,
+        hidden=True,
+        include_in_schema=False,
         json_schema_extra={"size": "half"},
     )
     ProxyTimes: int = PluginField(
@@ -363,26 +367,34 @@ class MaaEndUserDataConfig(BaseModel):
         min=0,
         max=9999,
         readonly=True,
+        hidden=True,
+        include_in_schema=False,
         json_schema_extra={"size": "half"},
     )
     IfPassCheck: bool = PluginField(
         default=True,
         title="是否通过检查",
         readonly=True,
+        hidden=True,
+        include_in_schema=False,
         json_schema_extra={"size": "half"},
     )
     LastProxyStatus: str = PluginField(
         default="未知",
         title="上次运行状态",
         readonly=True,
+        hidden=True,
+        include_in_schema=False,
         json_schema_extra={"size": "half"},
     )
-    PeriodTaskRecords: dict[str, Any] = PluginField(
-        default_factory=dict,
+    PeriodTaskRecords: str = PluginField(
+        default="{}",
         title="周期任务完成记录",
         ui_type="json",
         json_type="object",
         readonly=True,
+        hidden=True,
+        include_in_schema=False,
         json_schema_extra={"size": "large"},
     )
 
