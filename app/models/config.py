@@ -3286,7 +3286,7 @@ class GlobalConfig(ConfigBase):
         self.PlanConfig = MultipleConfig([MaaPlanConfig])
         ## 脚本配置列表
         self.ScriptConfig = MultipleConfig(
-            [MaaConfig, MaaEndConfig, SrcConfig, M9AConfig, MaaFWConfig, GeneralConfig, OkwwConfig, HSRConfig]
+            [MaaConfig, SrcConfig, M9AConfig, MaaFWConfig, GeneralConfig, OkwwConfig, HSRConfig]
         )
         ## 队列配置列表
         self.QueueConfig = MultipleConfig([QueueConfig])
@@ -3296,7 +3296,6 @@ class GlobalConfig(ConfigBase):
         self.PluginConfig = PluginConfig()
 
         MaaConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
-        MaaEndConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
         SrcConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
         M9AConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
         MaaFWConfig.related_config["EmulatorConfig"] = self.EmulatorConfig
@@ -3372,7 +3371,6 @@ CLASS_BOOK = {
     "MAA": MaaConfig,
     "MaaPlan": MaaPlanConfig,
     "SRC": SrcConfig,
-    "MaaEnd": MaaEndConfig,
     "M9A": M9AConfig,
     "MaaFW": MaaFWConfig,
     "General": GeneralConfig,

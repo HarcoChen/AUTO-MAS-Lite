@@ -402,6 +402,7 @@ class ScriptIndexItem(BaseModel):
         "M9AConfig",
         "MaaFWConfig",
         "HSRConfig",
+        "PluginScriptConfig",
     ] = Field(
         ..., description="配置类型"
     )
@@ -418,6 +419,7 @@ class UserIndexItem(BaseModel):
         "M9AUserConfig",
         "MaaFWUserConfig",
         "HSRUserConfig",
+        "PluginUserConfig",
     ] = Field(..., description="配置类型")
 
 
@@ -1779,7 +1781,7 @@ class ScriptCreateIn(BaseModel):
 
 class ScriptCreateOut(OutBase):
     scriptId: str = Field(..., description="新创建的脚本ID")
-    data: Union[MaaConfig, SrcConfig, GeneralConfig, OkwwConfig, MaaEndConfig, M9AConfig, MaaFWConfig, HSRConfig] = Field(
+    data: Union[MaaConfig, SrcConfig, GeneralConfig, OkwwConfig, M9AConfig, MaaFWConfig, HSRConfig, Dict[str, Any]] = Field(
         ..., description="脚本配置数据"
     )
 
@@ -1793,7 +1795,7 @@ class ScriptGetIn(BaseModel):
 class ScriptGetOut(OutBase):
     index: List[ScriptIndexItem] = Field(..., description="脚本索引列表")
     data: Dict[
-        str, Union[MaaConfig, SrcConfig, GeneralConfig, OkwwConfig, MaaEndConfig, M9AConfig, MaaFWConfig, HSRConfig]
+        str, Union[MaaConfig, SrcConfig, GeneralConfig, OkwwConfig, M9AConfig, MaaFWConfig, HSRConfig, Dict[str, Any]]
     ] = Field(
         ..., description="脚本数据字典, key来自于index列表的uid"
     )
@@ -1801,7 +1803,7 @@ class ScriptGetOut(OutBase):
 
 class ScriptUpdateIn(BaseModel):
     scriptId: str = Field(..., description="脚本ID")
-    data: Union[MaaConfig, SrcConfig, GeneralConfig, OkwwConfig, MaaEndConfig, M9AConfig, MaaFWConfig, HSRConfig] = Field(
+    data: Union[MaaConfig, SrcConfig, GeneralConfig, OkwwConfig, M9AConfig, MaaFWConfig, HSRConfig, Dict[str, Any]] = Field(
         ..., description="脚本更新数据"
     )
 
@@ -1856,10 +1858,10 @@ class UserGetOut(OutBase):
             SrcUserConfig,
             GeneralUserConfig,
             OkwwUserConfig,
-            MaaEndUserConfig,
             M9AUserConfig,
             MaaFWUserConfig,
             HSRUserConfig,
+            Dict[str, Any],
         ],
     ] = Field(..., description="用户数据字典, key来自于index列表的uid")
 
@@ -1871,10 +1873,10 @@ class UserCreateOut(OutBase):
         SrcUserConfig,
         GeneralUserConfig,
         OkwwUserConfig,
-        MaaEndUserConfig,
         M9AUserConfig,
         MaaFWUserConfig,
         HSRUserConfig,
+        Dict[str, Any],
     ] = (
         Field(..., description="用户配置数据")
     )
@@ -1887,10 +1889,10 @@ class UserUpdateIn(UserInBase):
         SrcUserConfig,
         GeneralUserConfig,
         OkwwUserConfig,
-        MaaEndUserConfig,
         M9AUserConfig,
         MaaFWUserConfig,
         HSRUserConfig,
+        Dict[str, Any],
     ] = (
         Field(..., description="用户更新数据")
     )

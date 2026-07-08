@@ -2103,10 +2103,10 @@ class AppConfig(GlobalConfig):
             elif is_script_config_compatible_with_type_key(script, "MaaEnd"):
                 if isinstance(script, PluginScriptConfig):
                     script_payload = await get_plugin_script_payload(script)
-                    game_group = script_payload.get("Game")
+                    emulator_group = script_payload.get("Emulator")
                     script_emulator_id = (
-                        game_group.get("EmulatorId")
-                        if isinstance(game_group, dict)
+                        emulator_group.get("Id")
+                        if isinstance(emulator_group, dict)
                         else None
                     )
                 else:
@@ -2145,9 +2145,9 @@ class AppConfig(GlobalConfig):
             elif emulator_field_kind == "game_group":
                 if isinstance(script, PluginScriptConfig):
                     script_payload = await get_plugin_script_payload(script)
-                    game_group = script_payload.setdefault("Game", {})
-                    if isinstance(game_group, dict):
-                        game_group["EmulatorId"] = "-"
+                    emulator_group = script_payload.setdefault("Emulator", {})
+                    if isinstance(emulator_group, dict):
+                        emulator_group["Id"] = "-"
                     await set_plugin_script_payload(script, script_payload)
                 else:
                     await script.set("Game", "EmulatorId", "-")

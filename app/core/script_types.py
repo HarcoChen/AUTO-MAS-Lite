@@ -56,16 +56,6 @@ LEGACY_SCRIPT_TYPE_METADATA = (
         "is_builtin": True,
     },
     {
-        "type_key": "MaaEnd",
-        "display_name": "MaaEnd脚本",
-        "script_class_name": "MaaEndConfig",
-        "user_class_name": "MaaEndUserConfig",
-        "supported_modes": ("AutoProxy", "ManualReview", "ScriptConfig"),
-        "icon": "MaaEnd",
-        "editor_kind": "builtin:maaend",
-        "is_builtin": True,
-    },
-    {
         "type_key": "General",
         "display_name": "通用脚本",
         "script_class_name": "GeneralConfig",
@@ -263,8 +253,6 @@ class ScriptTypeRegistry:
             HSRUserConfig,
             M9AConfig,
             M9AUserConfig,
-            MaaEndConfig,
-            MaaEndUserConfig,
             MaaFWConfig,
             MaaFWUserConfig,
             OkwwConfig,
@@ -296,17 +284,6 @@ class ScriptTypeRegistry:
                 manager_factory=_lazy_manager("app.task.SRC.manager", "SrcManager"),
                 icon="SRC",
                 editor_kind="builtin:src",
-                is_builtin=True,
-            ),
-            ScriptTypeProvider(
-                type_key="MaaEnd",
-                display_name="MaaEnd脚本",
-                script_config_class=MaaEndConfig,
-                user_config_class=MaaEndUserConfig,
-                supported_modes=("AutoProxy", "ManualReview", "ScriptConfig"),
-                manager_factory=_lazy_manager("app.task.MaaEnd.manager", "MaaEndManager"),
-                icon="MaaEnd",
-                editor_kind="builtin:maaend",
                 is_builtin=True,
             ),
             ScriptTypeProvider(
@@ -693,8 +670,6 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
         HSRConfig,
         M9AConfig,
         MaaConfig,
-        MaaEndConfig,
-        MaaEndUserConfig,
         MaaFWConfig,
         MaaUserConfig,
         OkwwConfig,
@@ -704,7 +679,6 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
 
     builtin_script_types = (
         MaaConfig,
-        MaaEndConfig,
         SrcConfig,
         M9AConfig,
         MaaFWConfig,
@@ -718,7 +692,6 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
     global_config.ScriptConfig.sub_config_type["GeneralConfig"] = LegacyGeneralConfig
 
     MaaConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
-    MaaEndConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
     SrcConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
     M9AConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
     MaaFWConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
@@ -726,7 +699,6 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
     MaaUserConfig.related_config["PlanConfig"] = global_config.PlanConfig
 
     _ = LegacyGeneralUserConfig
-    _ = MaaEndUserConfig
     _ = SrcUserConfig
 
 
@@ -750,8 +722,6 @@ def _resolve_legacy_config_classes(
         GeneralConfig,
         GeneralUserConfig,
         MaaConfig,
-        MaaEndConfig,
-        MaaEndUserConfig,
         MaaUserConfig,
         SrcConfig,
         SrcUserConfig,
@@ -760,12 +730,10 @@ def _resolve_legacy_config_classes(
     script_classes: dict[str, type[ConfigBase]] = {
         "GeneralConfig": GeneralConfig,
         "MaaConfig": MaaConfig,
-        "MaaEndConfig": MaaEndConfig,
         "SrcConfig": SrcConfig,
     }
     user_classes: dict[str, type[ConfigBase]] = {
         "GeneralUserConfig": GeneralUserConfig,
-        "MaaEndUserConfig": MaaEndUserConfig,
         "MaaUserConfig": MaaUserConfig,
         "SrcUserConfig": SrcUserConfig,
     }

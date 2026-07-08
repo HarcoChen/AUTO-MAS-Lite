@@ -105,7 +105,6 @@ def _build_maafw_agent_env_info_items(agent_plans: list[Any]) -> list[MaaFWAgent
 SCRIPT_BOOK = {
     "MaaConfig": MaaConfig,
     "SrcConfig": SrcConfig,
-    "MaaEndConfig": MaaEndConfig,
     "M9AConfig": M9AConfig,
     "MaaFWConfig": MaaFWConfig,
     "GeneralConfig": GeneralConfig,
@@ -115,13 +114,98 @@ SCRIPT_BOOK = {
 USER_BOOK = {
     "MaaConfig": MaaUserConfig,
     "SrcConfig": SrcUserConfig,
-    "MaaEndConfig": MaaEndUserConfig,
     "M9AConfig": M9AUserConfig,
     "MaaFWConfig": MaaFWUserConfig,
     "GeneralConfig": GeneralUserConfig,
     "OkwwConfig": OkwwUserConfig,
     "HSRConfig": HSRUserConfig,
 }
+
+
+def _script_provider_type_name(provider: Any) -> str:
+    return provider.script_config_class.__name__
+
+
+def _user_provider_type_name(provider: Any) -> str:
+    return provider.user_config_class.__name__
+
+
+def _plugin_type_key(config_payload: dict[str, Any]) -> str:
+    meta = config_payload.get("Meta")
+    if isinstance(meta, dict):
+        return str(meta.get("PluginTypeKey") or "").strip()
+    return ""
+
+
+async def _script_response_payload(config: Any) -> dict[str, Any] | BaseModel:
+    from app.core.script_config_codec import storage_to_form
+    from app.core.script_types import script_type_registry
+    from app.models.plugin_script_config import PluginScriptConfig
+
+    if isinstance(config, PluginScriptConfig):
+        provider = script_type_registry.get(config.get("Meta", "PluginTypeKey"))
+        return await storage_to_form(
+            provider,
+            config.get("PluginData", "Config"),
+            "script",
+        )
+    return SCRIPT_BOOK[type(config).__name__](**(await config.toDict()))
+
+
+async def _script_payload_from_dict(
+    index_item: dict[str, Any],
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any] | BaseModel]:
+    from app.core.script_config_codec import storage_to_form
+    from app.core.script_types import script_type_registry
+
+    if index_item.get("type") != "PluginScriptConfig":
+        return index_item, SCRIPT_BOOK[index_item.get("type", "GeneralConfig")](**payload)
+
+    type_key = _plugin_type_key(payload)
+    provider = script_type_registry.get(type_key)
+    normalized_index = dict(index_item)
+    normalized_index["type"] = _script_provider_type_name(provider)
+    plugin_data = payload.get("PluginData")
+    raw_config = plugin_data.get("Config") if isinstance(plugin_data, dict) else "{}"
+    return normalized_index, await storage_to_form(provider, raw_config, "script")
+
+
+async def _user_response_payload(script_id: str, config: Any) -> dict[str, Any] | BaseModel:
+    from app.core.script_config_codec import storage_to_form
+    from app.core.script_types import script_type_registry
+    from app.models.plugin_script_config import PluginUserConfig
+
+    script_config = Config.ScriptConfig[uuid.UUID(script_id)]
+    if isinstance(config, PluginUserConfig):
+        provider = script_type_registry.get(script_config.get("Meta", "PluginTypeKey"))
+        return await storage_to_form(
+            provider,
+            config.get("PluginData", "Config"),
+            "user",
+        )
+    return USER_BOOK[type(script_config).__name__](**(await config.toDict()))
+
+
+async def _user_payload_from_dict(
+    script_id: str,
+    index_item: dict[str, Any],
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any] | BaseModel]:
+    from app.core.script_config_codec import storage_to_form
+    from app.core.script_types import script_type_registry
+
+    script_config = Config.ScriptConfig[uuid.UUID(script_id)]
+    if index_item.get("type") != "PluginUserConfig":
+        return index_item, USER_BOOK[type(script_config).__name__](**payload)
+
+    type_key = script_config.get("Meta", "PluginTypeKey")
+    provider = script_type_registry.get(type_key)
+    normalized_index = dict(index_item)
+    normalized_index["type"] = _user_provider_type_name(provider)
+    plugin_data = payload.get("PluginData")
+    raw_config = plugin_data.get("Config") if isinstance(plugin_data, dict) else "{}"
+    return normalized_index, await storage_to_form(provider, raw_config, "user")
 
 
 @router.post(
@@ -135,7 +219,7 @@ async def add_script(script: ScriptCreateIn = Body(...)) -> ScriptCreateOut:
 
     try:
         uid, config = await Config.add_script(script.type, script.scriptId)
-        data = SCRIPT_BOOK[type(config).__name__](**(await config.toDict()))
+        data = await _script_response_payload(config)
     except Exception as e:
         return ScriptCreateOut(
             code=500,
@@ -158,13 +242,18 @@ async def get_script(script: ScriptGetIn = Body(...)) -> ScriptGetOut:
 
     try:
         index, data = await Config.get_script(script.scriptId)
-        index = [ScriptIndexItem(**_) for _ in index]
-        data = {
-            uid: SCRIPT_BOOK[next((_.type for _ in index if _.uid == uid), "General")](
-                **cfg
+        normalized_index: list[dict[str, Any]] = []
+        normalized_data: dict[str, Any] = {}
+        index_by_uid = {item.get("uid"): item for item in index}
+        for uid, cfg in data.items():
+            item, payload = await _script_payload_from_dict(
+                index_by_uid.get(uid, {"uid": uid, "type": "GeneralConfig"}),
+                cfg,
             )
-            for uid, cfg in data.items()
-        }
+            normalized_index.append(item)
+            normalized_data[uid] = payload
+        index = [ScriptIndexItem(**_) for _ in normalized_index]
+        data = normalized_data
     except Exception as e:
         return ScriptGetOut(
             code=500,
@@ -186,8 +275,14 @@ async def get_script(script: ScriptGetIn = Body(...)) -> ScriptGetOut:
 async def update_script(script: ScriptUpdateIn = Body(...)) -> OutBase:
 
     try:
+        payload = (
+            script.data.model_dump(exclude_unset=True)
+            if hasattr(script.data, "model_dump")
+            else dict(script.data)
+        )
         await Config.update_script(
-            script.scriptId, script.data.model_dump(exclude_unset=True)
+            script.scriptId,
+            payload,
         )
     except Exception as e:
         return OutBase(
@@ -337,13 +432,19 @@ async def get_user(user: UserGetIn = Body(...)) -> UserGetOut:
 
     try:
         index, data = await Config.get_user(user.scriptId, user.userId)
-        index = [UserIndexItem(**_) for _ in index]
-        data = {
-            uid: USER_BOOK[
-                type(Config.ScriptConfig[uuid.UUID(user.scriptId)]).__name__
-            ](**cfg)
-            for uid, cfg in data.items()
-        }
+        normalized_index: list[dict[str, Any]] = []
+        normalized_data: dict[str, Any] = {}
+        index_by_uid = {item.get("uid"): item for item in index}
+        for uid, cfg in data.items():
+            item, payload = await _user_payload_from_dict(
+                user.scriptId,
+                index_by_uid.get(uid, {"uid": uid, "type": "GeneralUserConfig"}),
+                cfg,
+            )
+            normalized_index.append(item)
+            normalized_data[uid] = payload
+        index = [UserIndexItem(**_) for _ in normalized_index]
+        data = normalized_data
     except Exception as e:
         return UserGetOut(
             code=500,
@@ -366,9 +467,7 @@ async def add_user(user: UserInBase = Body(...)) -> UserCreateOut:
 
     try:
         uid, config = await Config.add_user(user.scriptId)
-        data = USER_BOOK[type(Config.ScriptConfig[uuid.UUID(user.scriptId)]).__name__](
-            **(await config.toDict())
-        )
+        data = await _user_response_payload(user.scriptId, config)
     except Exception as e:
         return UserCreateOut(
             code=500,
@@ -390,8 +489,15 @@ async def add_user(user: UserInBase = Body(...)) -> UserCreateOut:
 async def update_user(user: UserUpdateIn = Body(...)) -> OutBase:
 
     try:
+        payload = (
+            user.data.model_dump(exclude_unset=True)
+            if hasattr(user.data, "model_dump")
+            else dict(user.data)
+        )
         await Config.update_user(
-            user.scriptId, user.userId, user.data.model_dump(exclude_unset=True)
+            user.scriptId,
+            user.userId,
+            payload,
         )
     except Exception as e:
         return OutBase(
