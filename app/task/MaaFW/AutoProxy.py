@@ -498,15 +498,29 @@ class AutoProxyTask(TaskExecuteBase):
             or self.cur_user_config.get("Info", "Controller")
             or ""
         ).strip()
+        configured_controller_type = str(
+            self.script_config.get("Game", "ControllerType") or ""
+        ).strip()
 
-        # 模拟器已选择时，优先使用 ADB controller，忽略用户配置中可能过时的 controller
-        wants_adb = self.script_config.get("Emulator", "Id") != "-"
-        if wants_adb:
+        if configured_controller_type in {"Adb", "Win32"}:
             if configured_controller:
                 controller = _find_controller(interface_model, configured_controller)
-                if controller.type == "Adb":
+                if controller.type == configured_controller_type:
                     return controller.name
 
+            typed_controller = next(
+                (
+                    controller
+                    for controller in interface_model.controller
+                    if controller.type == configured_controller_type
+                ),
+                None,
+            )
+            if typed_controller is not None:
+                return typed_controller.name
+
+        # 兼容旧配置：未声明控制器类型但已选择模拟器时，按旧逻辑走 ADB。
+        if not configured_controller_type and self.script_config.get("Emulator", "Id") != "-":
             adb_controller = next(
                 (
                     controller
@@ -518,7 +532,6 @@ class AutoProxyTask(TaskExecuteBase):
             if adb_controller is not None:
                 return adb_controller.name
 
-        # 无模拟器时，使用用户级 controller 偏好
         if configured_controller:
             return configured_controller
 

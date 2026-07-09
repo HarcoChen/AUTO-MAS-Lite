@@ -21,11 +21,12 @@ class MaaEndInfoConfig(BaseModel):
     Name: str = PluginField(
         default="新 MaaEnd 脚本",
         title="脚本名称",
-        json_schema_extra={"size": "half"},
+        json_schema_extra={"size": "large"},
     )
     ProjectLabel: str = PluginField(
         default="MaaEnd",
         title="项目标签",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     Path: str = PluginField(
@@ -41,12 +42,14 @@ class MaaEndInfoConfig(BaseModel):
         default="",
         title="Controller",
         help="留空时按 interface 与设备配置自动选择。",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     Resource: str = PluginField(
         default="",
         title="Resource",
         help="留空时选择匹配 controller 的第一个 resource。",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
 
@@ -60,9 +63,19 @@ class MaaEndEmulatorConfig(BaseModel):
         ui_type="related-id",
         related_config="EmulatorConfig",
         related_default="-",
-        json_schema_extra={"size": "half"},
+        json_schema_extra={
+            "size": "half",
+            "visible_when": {"field": "Game.ControllerType", "equals": "Adb"},
+        },
     )
-    Index: str = PluginField(default="-", title="模拟器实例", json_schema_extra={"size": "half"})
+    Index: str = PluginField(
+        default="-",
+        title="模拟器实例",
+        json_schema_extra={
+            "size": "half",
+            "visible_when": {"field": "Game.ControllerType", "equals": "Adb"},
+        },
+    )
 
 
 class MaaEndDeviceConfig(BaseModel):
@@ -73,14 +86,21 @@ class MaaEndDeviceConfig(BaseModel):
         title="ADB 路径",
         ui_type="path",
         path_kind="file",
+        hidden=True,
         json_schema_extra={"size": "large"},
     )
-    AdbAddress: str = PluginField(default="", title="ADB 地址", json_schema_extra={"size": "half"})
+    AdbAddress: str = PluginField(
+        default="",
+        title="ADB 地址",
+        hidden=True,
+        json_schema_extra={"size": "half"},
+    )
     AdbScreencapMethods: int = PluginField(
         default=-57,
         title="ADB 截图方法",
         min=-999,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     AdbInputMethods: int = PluginField(
@@ -88,6 +108,7 @@ class MaaEndDeviceConfig(BaseModel):
         title="ADB 输入方法",
         min=-999,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     HWnd: int = PluginField(
@@ -95,6 +116,7 @@ class MaaEndDeviceConfig(BaseModel):
         title="Win32 窗口句柄",
         min=0,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     Win32ScreencapMethod: int = PluginField(
@@ -102,6 +124,7 @@ class MaaEndDeviceConfig(BaseModel):
         title="Win32 截图方法",
         min=0,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     Win32MouseMethod: int = PluginField(
@@ -109,6 +132,7 @@ class MaaEndDeviceConfig(BaseModel):
         title="Win32 鼠标方法",
         min=0,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     Win32KeyboardMethod: int = PluginField(
@@ -116,6 +140,7 @@ class MaaEndDeviceConfig(BaseModel):
         title="Win32 键盘方法",
         min=0,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     GamepadType: int = PluginField(
@@ -123,16 +148,19 @@ class MaaEndDeviceConfig(BaseModel):
         title="Gamepad 类型",
         min=0,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     PlayCoverAddress: str = PluginField(
         default="",
         title="PlayCover 地址",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     PlayCoverUuid: str = PluginField(
         default="",
         title="PlayCover UUID",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
 
@@ -140,21 +168,40 @@ class MaaEndDeviceConfig(BaseModel):
 class MaaEndGameConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
+    ControllerType: Literal["Win32", "Adb"] = PluginField(
+        default="Win32",
+        title="控制器",
+        option_labels={"Win32": "Win32 抢矿", "Adb": "ADB 模拟器"},
+        json_schema_extra={"size": "half"},
+    )
     Path: str = PluginField(
         default="",
         title="终末地客户端路径",
         placeholder="请选择 Endfield.exe",
         ui_type="path",
         path_kind="file",
-        json_schema_extra={"size": "large"},
+        json_schema_extra={
+            "size": "large",
+            "visible_when": {"field": "Game.ControllerType", "equals": "Win32"},
+        },
     )
-    Arguments: str = PluginField(default="", title="游戏启动参数", json_schema_extra={"size": "large"})
+    Arguments: str = PluginField(
+        default="",
+        title="游戏启动参数",
+        json_schema_extra={
+            "size": "large",
+            "visible_when": {"field": "Game.ControllerType", "equals": "Win32"},
+        },
+    )
     WaitTime: int = PluginField(
         default=60,
         title="游戏启动等待时间",
-        min=0,
+        min=60,
         max=9999,
-        json_schema_extra={"size": "half"},
+        json_schema_extra={
+            "size": "half",
+            "visible_when": {"field": "Game.ControllerType", "equals": "Win32"},
+        },
     )
     CloseOnFinish: bool = PluginField(
         default=True,
@@ -167,7 +214,10 @@ class MaaEndUpdateConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     IfAutoUpdate: bool = PluginField(default=True, title="运行前自动更新")
-    Source: Literal["MirrorChyan"] = PluginField(default="MirrorChyan", title="更新源")
+    Source: Literal["MirrorChyan"] = PluginField(
+        default="MirrorChyan",
+        title="更新源",
+    )
     Channel: Literal["", "stable", "beta"] = PluginField(
         default="",
         title="更新渠道",
@@ -210,6 +260,7 @@ class MaaEndRunConfig(BaseModel):
         title="每周仅完成一次的任务",
         ui_type="json",
         json_type="array",
+        hidden=True,
         json_schema_extra={"size": "large"},
     )
     MonthlyOnceTasks: str = PluginField(
@@ -217,6 +268,7 @@ class MaaEndRunConfig(BaseModel):
         title="每月仅完成一次的任务",
         ui_type="json",
         json_type="array",
+        hidden=True,
         json_schema_extra={"size": "large"},
     )
 
@@ -248,7 +300,7 @@ class MaaEndUserInfoConfig(BaseModel):
         default="新用户",
         title="用户名称",
         validator="username",
-        json_schema_extra={"size": "half"},
+        json_schema_extra={"size": "large"},
     )
     Status: bool = PluginField(default=True, title="启用用户", json_schema_extra={"size": "half"})
     RemainedDay: int = PluginField(
@@ -261,26 +313,26 @@ class MaaEndUserInfoConfig(BaseModel):
     IfScriptBeforeTask: bool = PluginField(
         default=False,
         title="启用前置脚本",
-        json_schema_extra={"size": "half"},
+        json_schema_extra={"size": "1/4"},
     )
     ScriptBeforeTask: str = PluginField(
         default="",
         title="前置脚本",
         ui_type="path",
         path_kind="file",
-        json_schema_extra={"size": "large"},
+        json_schema_extra={"size": "3/4"},
     )
     IfScriptAfterTask: bool = PluginField(
         default=False,
         title="启用后置脚本",
-        json_schema_extra={"size": "half"},
+        json_schema_extra={"size": "1/4"},
     )
     ScriptAfterTask: str = PluginField(
         default="",
         title="后置脚本",
         ui_type="path",
         path_kind="file",
-        json_schema_extra={"size": "large"},
+        json_schema_extra={"size": "3/4"},
     )
     Notes: str = PluginField(
         default="无",
@@ -304,8 +356,18 @@ class MaaEndUserInfoConfig(BaseModel):
         sensitive=True,
         json_schema_extra={"size": "half"},
     )
-    Controller: str = PluginField(default="", title="Controller", json_schema_extra={"size": "half"})
-    Resource: str = PluginField(default="", title="Resource", json_schema_extra={"size": "half"})
+    Controller: str = PluginField(
+        default="",
+        title="Controller",
+        hidden=True,
+        json_schema_extra={"size": "half"},
+    )
+    Resource: str = PluginField(
+        default="",
+        title="Resource",
+        hidden=True,
+        json_schema_extra={"size": "half"},
+    )
 
 
 class MaaEndUserTaskConfig(BaseModel):
@@ -314,6 +376,7 @@ class MaaEndUserTaskConfig(BaseModel):
     SelectedPreset: str = PluginField(
         default="",
         title="任务预设",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     TaskSnapshot: str = PluginField(
@@ -330,22 +393,30 @@ class MaaEndUserTaskConfig(BaseModel):
 class MaaEndUserDeviceConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    AdbAddress: str = PluginField(default="", title="ADB 地址", json_schema_extra={"size": "half"})
+    AdbAddress: str = PluginField(
+        default="",
+        title="ADB 地址",
+        hidden=True,
+        json_schema_extra={"size": "half"},
+    )
     HWnd: int = PluginField(
         default=0,
         title="Win32 窗口句柄",
         min=0,
         max=999999999999,
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     PlayCoverAddress: str = PluginField(
         default="",
         title="PlayCover 地址",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
     PlayCoverUuid: str = PluginField(
         default="",
         title="PlayCover UUID",
+        hidden=True,
         json_schema_extra={"size": "half"},
     )
 

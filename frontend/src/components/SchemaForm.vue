@@ -466,39 +466,6 @@ const keyValueColumns = [
 
 const getFieldPath = (field: SchemaFieldDefinition) => field.key || field.name || ''
 
-const shouldRenderField = (field: SchemaFieldDefinition) =>
-  !field.hidden && !props.hideFields.includes(getFieldPath(field))
-
-const normalizedGroups = computed<SchemaGroupDefinition[]>(() => {
-  if (!props.schema) {
-    return []
-  }
-
-  if ('groups' in props.schema && Array.isArray((props.schema as GroupedSchemaDefinition).groups)) {
-    return (props.schema as GroupedSchemaDefinition).groups
-      .map(group => ({
-        ...group,
-        fields: (group.fields || []).filter(shouldRenderField),
-      }))
-      .filter(group => group.fields.length > 0)
-  }
-
-  const fields = Object.entries(props.schema as Record<string, SchemaFieldDefinition>)
-    .map(([field, fieldSchema]) => ({
-      ...fieldSchema,
-      key: field,
-    }))
-    .filter(shouldRenderField)
-
-  return [
-    {
-      key: 'default',
-      label: '',
-      fields,
-    },
-  ]
-})
-
 const cloneModel = () => JSON.parse(JSON.stringify(props.modelValue || {}))
 
 const showGroupTitle = (group: SchemaGroupDefinition) =>
@@ -638,6 +605,80 @@ const setValueByPath = (source: Record<string, any>, path: string, value: unknow
 }
 
 const getFieldValue = (field: string) => getValueByPath(props.modelValue || {}, field)
+
+const valuesEqual = (left: unknown, right: unknown) => {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return JSON.stringify(left) === JSON.stringify(right)
+  }
+  return left === right
+}
+
+const matchesVisibilityCondition = (
+  condition: NonNullable<SchemaFieldDefinition['visible_when']>
+) => {
+  const conditions = Array.isArray(condition) ? condition : [condition]
+  return conditions.every(item => {
+    const value = getFieldValue(item.field)
+    const hasValue = value !== undefined && value !== null && value !== ''
+
+    if ('exists' in item && Boolean(item.exists) !== hasValue) {
+      return false
+    }
+    if ('equals' in item && !valuesEqual(value, item.equals)) {
+      return false
+    }
+    if ('not_equals' in item && valuesEqual(value, item.not_equals)) {
+      return false
+    }
+    if (Array.isArray(item.in) && !item.in.some(option => valuesEqual(value, option))) {
+      return false
+    }
+    if (Array.isArray(item.not_in) && item.not_in.some(option => valuesEqual(value, option))) {
+      return false
+    }
+    return true
+  })
+}
+
+const shouldRenderField = (field: SchemaFieldDefinition) => {
+  if (field.hidden || props.hideFields.includes(getFieldPath(field))) {
+    return false
+  }
+  if (field.visible_when) {
+    return matchesVisibilityCondition(field.visible_when)
+  }
+  return true
+}
+
+const normalizedGroups = computed<SchemaGroupDefinition[]>(() => {
+  if (!props.schema) {
+    return []
+  }
+
+  if ('groups' in props.schema && Array.isArray((props.schema as GroupedSchemaDefinition).groups)) {
+    return (props.schema as GroupedSchemaDefinition).groups
+      .map(group => ({
+        ...group,
+        fields: (group.fields || []).filter(shouldRenderField),
+      }))
+      .filter(group => group.fields.length > 0)
+  }
+
+  const fields = Object.entries(props.schema as Record<string, SchemaFieldDefinition>)
+    .map(([field, fieldSchema]) => ({
+      ...fieldSchema,
+      key: field,
+    }))
+    .filter(shouldRenderField)
+
+  return [
+    {
+      key: 'default',
+      label: '',
+      fields,
+    },
+  ]
+})
 
 const updateFieldValue = (field: string, value: unknown) => {
   const nextValue = cloneModel()

@@ -55,6 +55,10 @@ def _user_remaining_days(config: ConfigBase) -> int:
     return value if isinstance(value, int) else -1
 
 
+def _controller_type(config: Any) -> str:
+    return str(_cfg_get(config, "Game", "ControllerType", "Win32") or "Win32")
+
+
 class MaaEndAdapterHooks(ScriptAdapterHooks):
     """MaaEnd 专项适配层，复用 MaaFW 项目运行能力。"""
 
@@ -86,10 +90,11 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
         if not getattr(interface, "task", None):
             return "MaaEnd MaaFW interface 未声明 task，请检查项目目录"
 
-        emulator_id = _cfg_get(script_config, "Emulator", "Id", "-")
-        emulator_index = _cfg_get(script_config, "Emulator", "Index", "-")
-        if emulator_id != "-" and emulator_index in ("", "-"):
-            return "请在 MaaEnd 插件配置中选择模拟器实例"
+        if _controller_type(script_config) == "Adb":
+            emulator_id = _cfg_get(script_config, "Emulator", "Id", "-")
+            emulator_index = _cfg_get(script_config, "Emulator", "Index", "-")
+            if emulator_id == "-" or emulator_index in ("", "-"):
+                return "ADB 模拟器模式需要选择模拟器和实例"
 
         return "Pass"
 
@@ -103,7 +108,7 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
         await self._update_project_before_run(runtime)
 
         emulator_id = _cfg_get(runtime.script_config, "Emulator", "Id", "-")
-        if emulator_id != "-":
+        if _controller_type(runtime.script_config) == "Adb" and emulator_id != "-":
             runtime.emulator_manager = await EmulatorManager.get_emulator_instance(
                 emulator_id
             )
