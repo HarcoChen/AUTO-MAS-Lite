@@ -64,6 +64,14 @@
     />
   </a-card>
 
+  <a-card v-if="isMaaEndAdapter && userId" class="config-card adapter-config-card">
+    <MaaEndTaskEditor
+      v-model="maaEndTaskEditorModel"
+      :project-path="String(scriptConfig?.Info?.Path || '')"
+      :controller-type="scriptConfig?.Game?.ControllerType === 'Adb' ? 'Adb' : 'Win32'"
+    />
+  </a-card>
+
   <SchemaActionSessionMask
     :visible="sessionVisible"
     :title="sessionTitle"
@@ -82,6 +90,7 @@ import HeaderSchemaActionButton from '@/components/HeaderSchemaActionButton.vue'
 import SchemaForm from '@/components/SchemaForm.vue'
 import SchemaActionSessionMask from '@/components/SchemaActionSessionMask.vue'
 import OkwwConfigEditor from '@/views/OkwwUserEdit/OkwwConfigEditor.vue'
+import MaaEndTaskEditor from '@/views/MaaEndUserEdit/MaaEndTaskEditor.vue'
 import { useSchemaActionRunner } from '@/composables/useSchemaActionRunner'
 import { useWebSocket, type WebSocketBaseMessage } from '@/composables/useWebSocket'
 import { useScriptRegistryApi } from '@/composables/useScriptRegistryApi'
@@ -119,6 +128,7 @@ const userName = ref('')
 const scriptType = ref('')
 const scriptEditorKind = ref('')
 const scriptDisplayName = ref('')
+const scriptConfig = ref<MaaEndAdapterScriptConfig>({})
 const docsUrl = ref<string | null>(null)
 const supportedModes = ref<string[]>([])
 const userSchema = ref<SchemaDefinition | null>(null)
@@ -142,6 +152,22 @@ const modeLabels: Record<string, string> = {
   AutoProxy: '全自动代理',
   ManualReview: '人工审核',
   ScriptConfig: '脚本配置',
+}
+
+interface MaaEndTaskEditorModel {
+  controller: string
+  resource: string
+  selectedPreset: string
+  taskSnapshot: string | Record<string, unknown>
+}
+
+interface MaaEndAdapterScriptConfig {
+  Info?: {
+    Path?: string
+  }
+  Game?: {
+    ControllerType?: string
+  }
 }
 
 const displayNameFromForm = computed(() => {
@@ -174,6 +200,30 @@ const currentPluginKey = () => {
 }
 
 const isOkwwAdapter = computed(() => currentPluginKey() === 'okwwadapter')
+const isMaaEndAdapter = computed(() => currentPluginKey() === 'maaendadapter')
+const maaEndTaskEditorModel = computed<MaaEndTaskEditorModel>({
+  get: () => ({
+    controller: String(formModel.value?.Info?.Controller || ''),
+    resource: String(formModel.value?.Info?.Resource || ''),
+    selectedPreset: String(formModel.value?.Task?.SelectedPreset || ''),
+    taskSnapshot: formModel.value?.Task?.TaskSnapshot || '{}',
+  }),
+  set: value => {
+    formModel.value = {
+      ...formModel.value,
+      Info: {
+        ...(formModel.value.Info || {}),
+        Controller: value.controller,
+        Resource: value.resource,
+      },
+      Task: {
+        ...(formModel.value.Task || {}),
+        SelectedPreset: value.selectedPreset,
+        TaskSnapshot: value.taskSnapshot,
+      },
+    }
+  },
+})
 
 const isCurrentPluginEvent = (plugin?: string | null) => {
   const key = currentPluginKey()
@@ -217,6 +267,7 @@ const loadData = async ({
 
     const descriptor = descriptorMap[scriptRecord.type]
     scriptName.value = normalizedScript.name
+    scriptConfig.value = cloneValue(scriptRecord.config || {}) as MaaEndAdapterScriptConfig
     scriptType.value = normalizedScript.type
     scriptEditorKind.value = normalizedScript.editorKind || ''
     scriptDisplayName.value = normalizedScript.displayName || normalizedScript.type
@@ -412,7 +463,8 @@ onUnmounted(() => {
   border-radius: 16px;
 }
 
-.okww-config-card {
+.okww-config-card,
+.adapter-config-card {
   margin-top: 16px;
 }
 
