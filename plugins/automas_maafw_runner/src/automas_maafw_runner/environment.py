@@ -19,6 +19,12 @@ RUNNER_DEFAULT_PACKAGES = (
     "pydantic==2.11.7",
     "json5==0.14.0",
 )
+RUNNER_INDEX_URLS = (
+    "https://mirrors.aliyun.com/pypi/simple/",
+    "https://pypi.tuna.tsinghua.edu.cn/simple/",
+    "https://pypi.mirrors.ustc.edu.cn/simple/",
+    "https://pypi.org/simple/",
+)
 RUNNER_ENV_TIMEOUT = 300
 REQUIREMENT_NAME_RE = re.compile(
     r"^\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)"
@@ -77,19 +83,12 @@ def prepare_runner_environment(
             send_log,
             f"[MaaFW Runner] 安装项目运行依赖: {', '.join(packages)}",
         )
-        _run_setup_command(
-            [
-                str(python_executable),
-                "-m",
-                "pip",
-                "install",
-                "--upgrade",
-                "--disable-pip-version-check",
-                "--quiet",
-                *packages,
-            ],
+        _install_runner_packages(
+            python_executable,
+            packages,
             cwd=project,
             env=env,
+            send_log=send_log,
         )
         _write_manifest(manifest_path, manifest)
         _send_log(send_log, f"[MaaFW Runner] 项目运行依赖已准备: {venv_path}")
@@ -283,6 +282,45 @@ def _run_setup_command(
     detail = (result.stderr or result.stdout or "").strip()
     raise RuntimeError(
         f"MaaFW Runner 环境准备失败 (exit={result.returncode}): {detail[:800]}"
+    )
+
+
+def _install_runner_packages(
+    python_executable: Path,
+    packages: tuple[str, ...],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    send_log: Callable[[str], None] | None = None,
+) -> None:
+    last_error: RuntimeError | None = None
+    for index_url in RUNNER_INDEX_URLS:
+        _send_log(send_log, f"[MaaFW Runner] 尝试 PyPI 源: {index_url}")
+        try:
+            _run_setup_command(
+                [
+                    str(python_executable),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    "--disable-pip-version-check",
+                    "--quiet",
+                    "--index-url",
+                    index_url,
+                    *packages,
+                ],
+                cwd=cwd,
+                env=env,
+            )
+            return
+        except RuntimeError as exc:
+            last_error = exc
+            _send_log(send_log, f"[MaaFW Runner] PyPI 源不可用，尝试下一个: {index_url}")
+
+    raise RuntimeError(
+        "MaaFW Runner 所有 PyPI 镜像均安装失败: "
+        f"{last_error or '未获得安装错误'}"
     )
 
 
