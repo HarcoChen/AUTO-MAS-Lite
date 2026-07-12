@@ -259,6 +259,14 @@ class MaaEndRunConfig(BaseModel):
         max=9999,
         json_schema_extra={"size": "half"},
     )
+    DailyOnceTasks: str = PluginField(
+        default="[]",
+        title="每日仅完成一次的任务",
+        ui_type="json",
+        json_type="array",
+        hidden=True,
+        json_schema_extra={"size": "large"},
+    )
     WeeklyOnceTasks: str = PluginField(
         default="[]",
         title="每周仅完成一次的任务",
