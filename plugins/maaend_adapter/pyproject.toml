@@ -4,11 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automas_plugin_maaend_adapter"
-version = "0.0.1"
+version = "0.0.2"
 description = "MaaEnd script adapter for AUTO-MAS"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "automas-script-maafw>=0.1.1",
+    "pydantic>=2",
+]
 
 [project.entry-points."auto_mas.plugins"]
 maaend_adapter = "maaend_adapter.plugin:Plugin"

@@ -16,7 +16,8 @@ DEFAULT_INSTANCE = {
 class Plugin(ScriptAdapterPlugin):
     """MaaEnd script adapter plugin."""
 
-    wants = [
+    needs = [
+        "emulator",
         "maafw.interface.v1",
         "maafw.runner.v1",
         "maafw.project_update.v1",
@@ -31,7 +32,7 @@ class Plugin(ScriptAdapterPlugin):
                 script_model=MaaEndConfig,
                 user_model=MaaEndUserConfig,
                 hooks_factory=MaaEndAdapterHooks,
-                supported_modes=("AutoProxy",),
+                supported_modes=("AutoProxy", "ScriptConfig"),
                 icon="MaaEnd",
                 editor_kind="plugin:maaend_adapter",
                 metadata={
