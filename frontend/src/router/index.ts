@@ -28,12 +28,6 @@ const routes = [
     meta: { title: '\u7f16\u8f91 SRC \u811a\u672c' },
   },
   {
-    path: '/scripts/:id/edit/maaend',
-    name: 'MaaEndScriptEdit',
-    component: () => import('../views/EditView/Script/MaaEndScriptEdit.vue'),
-    meta: { title: '\u7f16\u8f91 MaaEnd \u811a\u672c' },
-  },
-  {
     path: '/scripts/:id/edit/m9a',
     redirect: (to: RouteLocationGeneric) => `/scripts/${to.params.id}/edit/maafw`,
     name: 'M9AScriptEdit',
@@ -118,12 +112,6 @@ const routes = [
     meta: { title: '\u6dfb\u52a0 SRC \u7528\u6237' },
   },
   {
-    path: '/scripts/:scriptId/users/add/maaend',
-    name: 'MaaEndUserAdd',
-    component: () => import('../views/EditView/User/MaaEndUserEdit.vue'),
-    meta: { title: '\u6dfb\u52a0 MaaEnd \u7528\u6237' },
-  },
-  {
     path: '/scripts/:scriptId/users/add/m9a',
     redirect: (to: RouteLocationGeneric) => `/scripts/${to.params.scriptId}/users/add/maafw`,
     name: 'M9AUserAdd',
@@ -146,12 +134,6 @@ const routes = [
     name: 'SRCUserEdit',
     component: () => import('../views/EditView/User/SRCUserEdit.vue'),
     meta: { title: '\u7f16\u8f91 SRC \u7528\u6237' },
-  },
-  {
-    path: '/scripts/:scriptId/users/:userId/edit/maaend',
-    name: 'MaaEndUserEdit',
-    component: () => import('../views/EditView/User/MaaEndUserEdit.vue'),
-    meta: { title: '\u7f16\u8f91 MaaEnd \u7528\u6237' },
   },
   {
     path: '/scripts/:scriptId/users/:userId/edit/m9a',

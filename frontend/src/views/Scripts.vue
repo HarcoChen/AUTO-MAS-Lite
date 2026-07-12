@@ -24,30 +24,6 @@
     </div>
   </div>
 
-  <div v-if="showMaaEndConfigMask" class="maa-config-mask">
-    <div class="mask-content">
-      <div class="mask-icon">
-        <SettingOutlined :style="{ fontSize: '48px', color: 'var(--ant-color-primary)' }" />
-      </div>
-      <h2 class="mask-title">正在进行 MaaEnd 配置</h2>
-      <p class="mask-description">
-        当前正在配置 MaaEnd 脚本，请在 MaaEnd 配置界面完成相关设置。
-        <br />
-        配置完成后，点击“保存配置”解除页面锁定。
-      </p>
-      <div class="mask-actions">
-        <a-button
-          v-if="currentConfigScript"
-          type="primary"
-          size="large"
-          @click="handleSaveMaaEndConfig(currentConfigScript)"
-        >
-          保存配置
-        </a-button>
-      </div>
-    </div>
-  </div>
-
   <!-- 主要内容 -->
   <div class="scripts-header">
     <div class="header-left">
@@ -129,8 +105,6 @@
     @delete-user="handleDeleteUser"
     @start-src-config="handleStartSRCConfig"
     @save-src-config="handleSaveSRCConfig"
-    @start-maa-end-config="handleStartMaaEndConfig"
-    @save-maa-end-config="handleSaveMaaEndConfig"
     @toggle-user-status="handleToggleUserStatus"
     @pass-check-user="handlePassCheckUser"
   />
@@ -486,7 +460,6 @@ const addLoading = ref(false)
 const templateLoading = ref(false)
 const searchKeyword = ref('')
 const showSRCConfigMask = ref(false) // 控制SRC配置遮罩层的显示
-const showMaaEndConfigMask = ref(false) // 控制MaaEnd配置遮罩层的显示
 const currentConfigScript = ref<Script | null>(null) // 当前正在配置的脚本
 
 // WebSocket连接管理
@@ -968,119 +941,6 @@ const handleSaveSRCConfig = async (script: Script) => {
     const errorMsg = error instanceof Error ? error.message : String(error)
     logger.error(`保存SRC配置失败: ${errorMsg}`)
     message.error(`保存SRC配置失败: ${errorMsg}`)
-  }
-}
-
-const handleStartMaaEndConfig = async (script: Script) => {
-  if (!ensureScriptAvailable(script)) {
-    return
-  }
-  try {
-    const existingConnection = activeConnections.value.get(script.id)
-    if (existingConnection) {
-      message.warning('该脚本已在配置中，请先保存当前配置')
-      return
-    }
-
-    const response = await Service.addTaskApiDispatchStartPost({
-      taskId: script.id,
-      mode: TaskCreateIn.mode.SCRIPT_CONFIG,
-    })
-
-    if (response.code === 200) {
-      showMaaEndConfigMask.value = true
-      currentConfigScript.value = script
-
-      const subscriptionId = subscribe({ id: response.taskId }, (wsMessage: any) => {
-        if (wsMessage.type === 'error') {
-          const errorMsg =
-            wsMessage.data instanceof Error ? wsMessage.data.message : String(wsMessage.data)
-          logger.error(`脚本 ${script.name} 连接错误: ${errorMsg}`)
-          message.error(`MaaEnd 配置连接失败: ${errorMsg}`)
-          activeConnections.value.delete(script.id)
-          showMaaEndConfigMask.value = false
-          currentConfigScript.value = null
-          return
-        }
-
-        if (wsMessage.type === 'Info' && wsMessage.data && wsMessage.data.Error) {
-          const errorMsg =
-            wsMessage.data.Error instanceof Error
-              ? wsMessage.data.Error.message
-              : String(wsMessage.data.Error)
-          logger.error(`脚本 ${script.name} 配置异常: ${errorMsg}`)
-          message.error(`MaaEnd 配置失败: ${errorMsg}`)
-          return
-        }
-
-        if (
-          wsMessage.type === 'Signal' &&
-          wsMessage.data &&
-          wsMessage.data.Accomplish !== undefined
-        ) {
-          unsubscribe(subscriptionId)
-          activeConnections.value.delete(script.id)
-          showMaaEndConfigMask.value = false
-          currentConfigScript.value = null
-        }
-      })
-
-      activeConnections.value.set(script.id, {
-        subscriptionId,
-        websocketId: response.taskId,
-      })
-      message.success(`已启动 ${script.name} 的 MaaEnd 配置`)
-
-      setTimeout(
-        () => {
-          if (activeConnections.value.has(script.id)) {
-            const connection = activeConnections.value.get(script.id)
-            if (connection) {
-              unsubscribe(connection.subscriptionId)
-            }
-            activeConnections.value.delete(script.id)
-            showMaaEndConfigMask.value = false
-            currentConfigScript.value = null
-            message.info(`${script.name} 配置会话已超时断开`)
-          }
-        },
-        30 * 60 * 1000
-      )
-    } else {
-      message.error(response.message || '启动 MaaEnd 配置失败')
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
-    logger.error(`启动 MaaEnd 配置失败: ${errorMsg}`)
-    message.error(`启动 MaaEnd 配置失败: ${errorMsg}`)
-  }
-}
-
-const handleSaveMaaEndConfig = async (script: Script) => {
-  try {
-    const connection = activeConnections.value.get(script.id)
-    if (!connection) {
-      message.error('未找到活动的配置会话')
-      return
-    }
-
-    const response = await Service.stopTaskApiDispatchStopPost({
-      taskId: connection.websocketId,
-    })
-
-    if (response.code === 200) {
-      unsubscribe(connection.subscriptionId)
-      activeConnections.value.delete(script.id)
-      showMaaEndConfigMask.value = false
-      currentConfigScript.value = null
-      message.success(`${script.name} 的配置已保存`)
-    } else {
-      message.error(response.message || '保存配置失败')
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
-    logger.error(`保存 MaaEnd 配置失败: ${errorMsg}`)
-    message.error(`保存 MaaEnd 配置失败: ${errorMsg}`)
   }
 }
 

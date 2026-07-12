@@ -151,7 +151,6 @@ export const getScriptTypeTagColor = (type: string, themeColor?: string | null) 
 const BUILTIN_EDITOR_SEGMENTS: Record<string, string> = {
   'builtin:maa': 'maa',
   'builtin:src': 'src',
-  'builtin:maaend': 'maaend',
   'builtin:m9a': 'm9a',
   'builtin:maafw': 'maafw',
   'builtin:ok-script': 'ok-script',

@@ -61,6 +61,12 @@ uv.lock
 /plugins/*
 !/plugins/auto_mas_core/
 !/plugins/auto_mas_core/**
+!/plugins/maaend_adapter/
+!/plugins/maaend_adapter/**
+plugins/maaend_adapter/build/
+plugins/maaend_adapter/dist/
+plugins/maaend_adapter/**/*.egg-info/
+plugins/maaend_adapter/**/__pycache__/
 !/plugins/automas_maafw_interface/
 !/plugins/automas_maafw_interface/**
 plugins/automas_maafw_interface/build/

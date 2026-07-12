@@ -36,7 +36,7 @@ describe('scriptCreateFlow', () => {
 
   it('maps every script type to its edit route segment', () => {
     expect(getScriptEditSegment('MAA')).toBe('maa')
-    expect(getScriptEditSegment('MaaEnd')).toBe('maaend')
+    expect(getScriptEditSegment('MaaEnd')).toBe('plugin')
     expect(getScriptEditSegment('Okww')).toBe('okww')
     expect(getScriptEditSegment('OkScript')).toBe('ok-script')
     expect(getScriptEditSegment('HSR')).toBe('hsr')

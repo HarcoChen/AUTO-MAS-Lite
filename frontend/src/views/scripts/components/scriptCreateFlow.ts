@@ -129,7 +129,7 @@ export const splitScriptTypeOptions = (options: ScriptTypeOption[]) => ({
 const EDIT_SEGMENT_BY_TYPE: Record<ScriptType, string> = {
   MAA: 'maa',
   SRC: 'src',
-  MaaEnd: 'maaend',
+  MaaEnd: 'plugin',
   M9A: 'm9a',
   MaaFW: 'maafw',
   Okww: 'okww',
