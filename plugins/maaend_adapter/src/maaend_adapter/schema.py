@@ -60,9 +60,8 @@ class MaaEndEmulatorConfig(BaseModel):
     Id: str = PluginField(
         default="-",
         title="模拟器",
-        ui_type="related-id",
-        related_config="EmulatorConfig",
-        related_default="-",
+        ui_type="select",
+        options_provider={"source": "emulator_options"},
         json_schema_extra={
             "size": "half",
             "visible_when": {"field": "Game.ControllerType", "equals": "Adb"},
@@ -71,6 +70,11 @@ class MaaEndEmulatorConfig(BaseModel):
     Index: str = PluginField(
         default="-",
         title="模拟器实例",
+        ui_type="select",
+        options_provider={
+            "source": "emulator_device_options",
+            "selected_field": "Emulator.Id",
+        },
         json_schema_extra={
             "size": "half",
             "visible_when": {"field": "Game.ControllerType", "equals": "Adb"},
