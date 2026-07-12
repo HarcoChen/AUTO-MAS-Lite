@@ -2,10 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type OkwwUserConfig_Task = {
+export type ScriptRecordReorderIn = {
     /**
-     * 启动后执行第 N 个任务（-t N，从 1 开始）
+     * 脚本 ID 顺序
      */
-    TaskIndex?: (number | null);
+    indexList: Array<string>;
 };
 

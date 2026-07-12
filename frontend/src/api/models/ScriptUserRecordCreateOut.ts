@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { MaaFWProjectUpdateData } from './MaaFWProjectUpdateData';
-export type MaaFWProjectUpdateOut = {
+import type { ScriptUserRecord } from './ScriptUserRecord';
+export type ScriptUserRecordCreateOut = {
     /**
      * 状态码
      */
@@ -17,8 +17,8 @@ export type MaaFWProjectUpdateOut = {
      */
     message?: string;
     /**
-     * MaaFW 项目更新结果
+     * 新建后的用户记录
      */
-    data?: (MaaFWProjectUpdateData | null);
+    record: ScriptUserRecord;
 };
 

@@ -2,10 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type PluginDevRebuildCtxStubIn = {
+export type QrSaveIn = {
     /**
-     * 是否在非开发模式下强制生成
+     * MAS 账号组 UUID
      */
-    force?: boolean;
+    account_uid: string;
+    cookie: string;
 };
 

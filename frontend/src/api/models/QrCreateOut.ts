@@ -2,8 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { MaaFWProjectUpdateData } from './MaaFWProjectUpdateData';
-export type MaaFWProjectUpdateOut = {
+export type QrCreateOut = {
     /**
      * 状态码
      */
@@ -17,8 +16,10 @@ export type MaaFWProjectUpdateOut = {
      */
     message?: string;
     /**
-     * MaaFW 项目更新结果
+     * 二维码 ticket
      */
-    data?: (MaaFWProjectUpdateData | null);
+    ticket?: string;
+    qr_url?: string;
+    device?: string;
 };
 

@@ -37,6 +37,15 @@ export interface SchemaOptionDefinition {
   value: unknown
 }
 
+export interface SchemaVisibilityCondition {
+  field: string
+  equals?: unknown
+  not_equals?: unknown
+  in?: unknown[]
+  not_in?: unknown[]
+  exists?: boolean
+}
+
 export type SchemaFieldSize =
   | '1/1'
   | '1/2'
@@ -71,6 +80,7 @@ export interface SchemaFieldDefinition {
   placeholder?: string
   help?: string
   hidden?: boolean
+  visible_when?: SchemaVisibilityCondition | SchemaVisibilityCondition[]
   rows?: number
   ui_type?: string
   item_type?: string

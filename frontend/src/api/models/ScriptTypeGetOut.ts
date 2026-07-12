@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { MaaFWProjectUpdateData } from './MaaFWProjectUpdateData';
-export type MaaFWProjectUpdateOut = {
+import type { ScriptTypeDescriptor } from './ScriptTypeDescriptor';
+export type ScriptTypeGetOut = {
     /**
      * 状态码
      */
@@ -17,8 +17,8 @@ export type MaaFWProjectUpdateOut = {
      */
     message?: string;
     /**
-     * MaaFW 项目更新结果
+     * 脚本类型列表
      */
-    data?: (MaaFWProjectUpdateData | null);
+    data: Array<ScriptTypeDescriptor>;
 };
 

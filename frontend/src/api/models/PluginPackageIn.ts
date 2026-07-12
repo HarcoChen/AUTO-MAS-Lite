@@ -2,14 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MaaEndConfig_Info = {
+export type PluginPackageIn = {
     /**
-     * 脚本名称
+     * PyPI 包名
      */
-    Name?: (string | null);
-    /**
-     * 脚本路径
-     */
-    Path?: (string | null);
+    package: string;
 };
 

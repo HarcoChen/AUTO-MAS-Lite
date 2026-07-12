@@ -2,10 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MaaFWProjectUpdateIn = {
+export type ScriptRecordUpdateIn = {
     /**
-     * MaaFW 脚本 ID
+     * 脚本 ID
      */
     scriptId: string;
+    /**
+     * 脚本配置更新内容
+     */
+    config: Record<string, any>;
 };
 

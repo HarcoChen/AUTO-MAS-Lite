@@ -2,10 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MaaFWProjectUpdateIn = {
+export type ScriptUserRecordReorderIn = {
     /**
-     * MaaFW 脚本 ID
+     * 所属脚本 ID
      */
     scriptId: string;
+    /**
+     * 用户 ID 顺序
+     */
+    indexList: Array<string>;
 };
 
