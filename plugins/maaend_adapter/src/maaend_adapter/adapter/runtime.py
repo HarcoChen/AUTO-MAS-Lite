@@ -1,270 +1,53 @@
 from __future__ import annotations
 
-import asyncio
-from contextlib import suppress
-from datetime import datetime
-from pathlib import Path
-from typing import Any
-
-from app.core import Config
-from app.models.ConfigBase import ConfigBase, MultipleConfig
-from app.models.task import TaskExecuteBase, UserItem
-from app.plugins import ScriptAdapterHooks, ScriptAdapterRuntime
-from app.services import Notify
-from app.utils import get_logger
-from app.utils.constants import TASK_MODE_ZH
-from automas_maafw_interface.loader import MaaFWInterfaceLoadError
-from automas_maafw_interface.service import MaaFWInterfaceService
-from automas_maafw_project_update.service import MaaFWProjectUpdateService
-from automas_script_maafw.runner_task import MaaFWPluginAutoProxyTask
-
-logger = get_logger("MaaEnd 插件适配")
+from app.models.ConfigBase import ConfigBase
+from app.models.task import UserItem
+from app.plugins import ScriptAdapterRuntime
+from automas_script_maafw.adapter import MaaFWAdapterHooks
 
 
-def _cfg_get(config: Any, group: str, name: str, default: Any = None) -> Any:
-    if config is None:
+def _config_value(config: ConfigBase, group: str, name: str, default=None):
+    try:
+        value = config.get(group, name)
+    except Exception:
         return default
-    get_value = getattr(config, "get", None)
-    if callable(get_value):
-        try:
-            value = get_value(group, name)
-        except Exception:
-            return default
-        return default if value is None else value
-    if isinstance(config, dict):
-        group_data = config.get(group)
-        if isinstance(group_data, dict):
-            return group_data.get(name, default)
-    return default
+    return default if value is None else value
 
 
-def _user_name(config: ConfigBase, fallback: str) -> str:
-    return str(_cfg_get(config, "Info", "Name", fallback) or fallback)
-
-
-def _user_enabled(config: ConfigBase) -> bool:
-    return bool(_cfg_get(config, "Info", "Status", True))
-
-
-def _user_remaining_days(config: ConfigBase) -> int:
-    value = _cfg_get(config, "Info", "RemainedDay", -1)
-    return value if isinstance(value, int) else -1
-
-
-def _controller_type(config: Any) -> str:
-    return str(_cfg_get(config, "Game", "ControllerType", "Win32") or "Win32")
-
-
-class MaaEndAdapterHooks(ScriptAdapterHooks):
-    """MaaEnd 专项适配层，复用 MaaFW 项目运行能力。"""
-
-    async def check(self, runtime: ScriptAdapterRuntime) -> str:
-        try:
-            script_config = await runtime.build_script_model()
-        except Exception as exc:
-            return f"无法读取 MaaEnd 插件配置: {exc}"
-
-        raw_project_path = str(_cfg_get(script_config, "Info", "Path", "") or "").strip()
-        if not raw_project_path:
-            return "请设置 MaaEnd MaaFW 项目目录"
-        project_path = Path(raw_project_path)
-        if not project_path.exists():
-            return "请设置 MaaEnd MaaFW 项目目录"
-
-        try:
-            interface = MaaFWInterfaceService().load(project_path)
-        except Exception as exc:
-            return f"无法读取 MaaEnd MaaFW interface，请检查项目路径: {exc}"
-
-        if not getattr(interface, "controller", None):
-            return "MaaEnd MaaFW interface 未声明 controller，请检查项目目录"
-        if not getattr(interface, "resource", None):
-            return "MaaEnd MaaFW interface 未声明 resource，请检查项目目录"
-        if not getattr(interface, "task", None):
-            return "MaaEnd MaaFW interface 未声明 task，请检查项目目录"
-
-        if _controller_type(script_config) == "Adb":
-            emulator_id = _cfg_get(script_config, "Emulator", "Id", "-")
-            emulator_index = _cfg_get(script_config, "Emulator", "Index", "-")
-            if emulator_id == "-" or emulator_index in ("", "-"):
-                return "ADB 模拟器模式需要选择模拟器和实例"
-
-        return "Pass"
+class MaaEndAdapterHooks(MaaFWAdapterHooks):
+    """MaaEnd 配置桥接层，运行生命周期复用通用 MaaFW adapter。"""
 
     async def prepare(self, runtime: ScriptAdapterRuntime) -> None:
         await runtime.storage.lock()
         runtime.storage_script_config = runtime.get_storage_script_config()
         runtime.script_config = await runtime.build_script_model()
         runtime.user_config = await runtime.storage.load_user_collection()
+        runtime.extra["maafw_project_update_logs"] = []
 
-        runtime.extra["project_update_logs"] = []
-        await self._update_project_before_run(runtime)
+        await self._update_project_before_run(runtime, runtime.script_config)
 
-        emulator_id = _cfg_get(runtime.script_config, "Emulator", "Id", "-")
-        if _controller_type(runtime.script_config) == "Adb" and emulator_id != "-":
+        emulator_id = _config_value(runtime.script_config, "Emulator", "Id", "-")
+        controller_type = _config_value(
+            runtime.script_config,
+            "Game",
+            "ControllerType",
+            "Win32",
+        )
+        if controller_type == "Adb" and emulator_id != "-":
             runtime.emulator_manager = await runtime.initialize_emulator_manager(emulator_id)
 
-        user_config = runtime.user_config
         runtime.script_info.user_list = [
             UserItem(
                 user_id=str(user_id),
-                name=_user_name(config, str(user_id)),
+                name=str(_config_value(config, "Info", "Name", user_id)),
                 status="等待",
             )
-            for user_id, config in user_config.items()
+            for user_id, config in runtime.user_config.items()
             if isinstance(config, ConfigBase)
-            and _user_enabled(config)
-            and _user_remaining_days(config) != 0
+            and bool(_config_value(config, "Info", "Status", True))
+            and _config_value(config, "Info", "RemainedDay", -1) != 0
         ]
-        logger.info(
-            f"MaaEnd 插件用户列表加载完成，已筛选用户数: {len(runtime.script_info.user_list)}"
+        self._emit_log(
+            runtime,
+            f"MaaEnd 插件用户列表加载完成，已筛选用户数: {len(runtime.script_info.user_list)}",
         )
-
-    def run_auto_proxy(self, runtime: ScriptAdapterRuntime) -> TaskExecuteBase:
-        if runtime.script_config is None:
-            raise RuntimeError("MaaEnd 插件脚本配置未准备完成")
-        if not isinstance(runtime.user_config, MultipleConfig):
-            raise RuntimeError("MaaEnd 插件用户配置未准备完成")
-
-        return MaaFWPluginAutoProxyTask(
-            runtime.script_info,
-            runtime.script_config,
-            runtime.user_config,
-            runtime.emulator_manager,
-            runtime.extra.get("project_update_logs", []),
-        )
-
-    async def finalize(self, runtime: ScriptAdapterRuntime) -> None:
-        await self._unlock_and_save_users(runtime)
-
-        if runtime.check_result != "Pass":
-            runtime.script_info.status = "异常"
-            return
-
-        error_user = [u.name for u in runtime.script_info.user_list if u.status == "异常"]
-        over_user = [u.name for u in runtime.script_info.user_list if u.status == "完成"]
-        wait_user = [u.name for u in runtime.script_info.user_list if u.status == "等待"]
-        skip_user = [u.name for u in runtime.script_info.user_list if u.status == "跳过"]
-
-        if error_user:
-            runtime.script_info.status = "异常"
-        elif over_user:
-            runtime.script_info.status = "完成"
-        else:
-            runtime.script_info.status = "跳过" if skip_user else "完成"
-
-        title = (
-            f"{datetime.now().strftime('%m-%d')} | "
-            f"{runtime.script_info.name or '空白'}的{TASK_MODE_ZH[runtime.mode]}任务报告"
-        )
-        try:
-            await Notify.push_plyer(
-                title.replace("报告", "已完成！"),
-                f"已完成用户数: {len(over_user)}, 未完成用户数: {len(error_user) + len(wait_user)}",
-                f"已完成用户数: {len(over_user)}, 未完成用户数: {len(error_user) + len(wait_user)}",
-                10,
-            )
-        except Exception as exc:
-            logger.warning(f"MaaEnd 插件桌面通知发送失败: {exc}")
-
-    async def on_crash(self, runtime: ScriptAdapterRuntime, error: Exception) -> None:
-        runtime.script_info.status = "异常"
-        logger.exception(f"MaaEnd 插件任务出现异常: {error}")
-        with suppress(Exception):
-            await self._unlock_and_save_users(runtime)
-        with suppress(Exception):
-            await Config.send_websocket_message(
-                id=runtime.task_info.task_id,
-                type="Info",
-                data={"Error": f"MaaEnd 插件任务出现异常: {error}"},
-            )
-
-    async def _update_project_before_run(self, runtime: ScriptAdapterRuntime) -> None:
-        if not _cfg_get(runtime.script_config, "Update", "IfAutoUpdate", True):
-            self._send_update_log(runtime, "MaaEnd MaaFW 项目运行前自动更新已关闭")
-            return
-
-        project_path = Path(_cfg_get(runtime.script_config, "Info", "Path", "")).resolve()
-        try:
-            interface_model = MaaFWInterfaceService().load(project_path)
-        except MaaFWInterfaceLoadError as exc:
-            self._send_update_log(
-                runtime,
-                f"MaaEnd MaaFW 项目更新跳过，interface 读取失败: {exc}",
-            )
-            return
-
-        mirror_cdk = (
-            _cfg_get(runtime.script_config, "Update", "MirrorChyanCDK", "")
-            or Config.get("Update", "MirrorChyanCDK")
-        )
-        channel = (
-            _cfg_get(runtime.script_config, "Update", "Channel", "")
-            or Config.get("Update", "Channel")
-        )
-        try:
-            update_result = await MaaFWProjectUpdateService().update_if_needed(
-                project_path,
-                interface_model,
-                mirror_cdk=mirror_cdk,
-                channel=channel,
-                proxy=Config.proxy,
-                send_log=lambda message: self._send_update_log(runtime, message),
-            )
-            if update_result.updated:
-                refreshed_interface = MaaFWInterfaceService().load(
-                    project_path,
-                    force_reload=True,
-                )
-                self._send_update_log(
-                    runtime,
-                    "MaaEnd MaaFW project updated, preparing agent Python env",
-                )
-                agent_prepare_logs: list[str] = []
-                try:
-                    await asyncio.to_thread(
-                        _prepare_maafw_agent_python_envs,
-                        project_path,
-                        refreshed_interface,
-                        send_log=agent_prepare_logs.append,
-                    )
-                finally:
-                    for log_line in agent_prepare_logs:
-                        self._send_update_log(runtime, log_line)
-        except Exception as exc:
-            self._send_update_log(
-                runtime,
-                f"MaaEnd MaaFW 项目更新失败，继续使用当前目录: {exc}",
-            )
-
-    def _send_update_log(self, runtime: ScriptAdapterRuntime, message: str) -> None:
-        logger.info(message)
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        runtime.extra.setdefault("project_update_logs", []).append(
-            f"[{timestamp}] {message}\n"
-        )
-        runtime.script_info.log = "".join(runtime.extra["project_update_logs"][-80:])
-
-    async def _unlock_and_save_users(self, runtime: ScriptAdapterRuntime) -> None:
-        storage_script_config = runtime.get_storage_script_config()
-        if getattr(storage_script_config, "is_locked", False):
-            await runtime.storage.unlock()
-
-        if isinstance(runtime.user_config, MultipleConfig):
-            await runtime.storage.save_user_models(runtime.user_config)
-            await Config.ScriptConfig.save()
-
-
-def _prepare_maafw_agent_python_envs(
-    project_path: Path,
-    interface_model: Any,
-    *,
-    send_log: Any = None,
-) -> None:
-    from automas_maafw_agent_env.service import MaaFWAgentEnvService
-
-    MaaFWAgentEnvService().prepare_env(
-        project_path,
-        interface_model,
-        send_log=send_log,
-    )
