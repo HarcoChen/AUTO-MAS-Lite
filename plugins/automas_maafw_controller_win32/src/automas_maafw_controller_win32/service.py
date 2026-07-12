@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-from automas_maafw_interface.models import MaaFWController
+from pydantic import BaseModel, ConfigDict
 
 MAX_REGEX_PATTERN_LENGTH = 256
 MAX_REGEX_VALUE_LENGTH = 4096
@@ -25,6 +26,23 @@ class MaaFWWin32Window:
 class MaaFWWindowMatch(MaaFWWin32Window):
     controllerName: str
     controllerType: str
+
+
+class MaaFWWin32Definition(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    class_regex: str | None = None
+    window_regex: str | None = None
+
+
+class MaaFWWin32ControllerDefinition(BaseModel):
+    """Win32 provider service boundary DTO."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str
+    type: str
+    win32: MaaFWWin32Definition | None = None
 
 
 class MaaFWWin32ControllerService:
@@ -59,18 +77,14 @@ class MaaFWWin32ControllerService:
 
     def match_controller_windows(
         self,
-        controller: MaaFWController | dict[str, Any],
+        controller: Mapping[str, Any],
         windows: Iterable[MaaFWWin32Window] | None = None,
     ) -> list[MaaFWWindowMatch]:
-        controller_model = (
-            controller
-            if isinstance(controller, MaaFWController)
-            else MaaFWController.model_validate(controller)
-        )
-        if controller_model.type != "Win32":
+        controller_definition = MaaFWWin32ControllerDefinition.model_validate(controller)
+        if controller_definition.type != "Win32":
             return []
 
-        class_regex, window_regex = _controller_window_regex(controller_model)
+        class_regex, window_regex = _controller_window_regex(controller_definition)
         source_windows = list(windows) if windows is not None else self.list_windows()
         matched: list[MaaFWWindowMatch] = []
         seen_hwnds: set[int] = set()
@@ -89,8 +103,8 @@ class MaaFWWin32ControllerService:
                     hWnd=window.hWnd,
                     className=window.className,
                     windowName=window.windowName,
-                    controllerName=controller_model.name,
-                    controllerType=controller_model.type,
+                    controllerName=controller_definition.name,
+                    controllerType=controller_definition.type,
                 )
             )
 
@@ -113,7 +127,9 @@ class MaaFWWin32ControllerService:
         }
 
 
-def _controller_window_regex(controller: MaaFWController) -> tuple[str | None, str | None]:
+def _controller_window_regex(
+    controller: MaaFWWin32ControllerDefinition,
+) -> tuple[str | None, str | None]:
     if controller.type == "Win32" and controller.win32 is not None:
         return controller.win32.class_regex, controller.win32.window_regex
     return None, None
