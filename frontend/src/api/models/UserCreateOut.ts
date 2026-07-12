@@ -5,9 +5,12 @@
 import type { GeneralUserConfig } from './GeneralUserConfig';
 import type { HSRUserConfig } from './HSRUserConfig';
 import type { M9AUserConfig } from './M9AUserConfig';
+import type { MaaEndUserConfig } from './MaaEndUserConfig';
 import type { MaaFWUserConfig } from './MaaFWUserConfig';
 import type { MaaUserConfig } from './MaaUserConfig';
+import type { OkefUserConfig } from './OkefUserConfig';
 import type { OkwwUserConfig } from './OkwwUserConfig';
+import type { PluginUserConfig } from './PluginUserConfig';
 import type { SrcUserConfig } from './SrcUserConfig';
 export type UserCreateOut = {
     /**
@@ -29,6 +32,6 @@ export type UserCreateOut = {
     /**
      * 用户配置数据
      */
-    data: (MaaUserConfig | SrcUserConfig | GeneralUserConfig | OkwwUserConfig | M9AUserConfig | MaaFWUserConfig | HSRUserConfig | Record<string, any>);
+    data: (MaaUserConfig | SrcUserConfig | GeneralUserConfig | OkwwUserConfig | OkefUserConfig | MaaEndUserConfig | M9AUserConfig | MaaFWUserConfig | HSRUserConfig | PluginUserConfig);
 };
 

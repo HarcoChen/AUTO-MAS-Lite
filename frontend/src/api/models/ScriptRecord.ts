@@ -39,9 +39,21 @@ export type ScriptRecord = {
      */
     icon?: (string | null);
     /**
+     * 图标资源地址
+     */
+    icon_url?: (string | null);
+    /**
+     * 主题颜色
+     */
+    theme_color?: (string | null);
+    /**
      * 文档地址
      */
     docs_url?: (string | null);
+    /**
+     * 脚本编辑页底部提示
+     */
+    edit_hint?: (Record<string, any> | null);
     /**
      * 用户数量
      */

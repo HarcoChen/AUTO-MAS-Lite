@@ -19,6 +19,14 @@ export type ScriptTypeDescriptor = {
      */
     icon?: (string | null);
     /**
+     * 脚本类型图标资源地址
+     */
+    icon_url?: (string | null);
+    /**
+     * 脚本类型主题颜色
+     */
+    theme_color?: (string | null);
+    /**
      * 文档地址
      */
     docs_url?: (string | null);
@@ -50,5 +58,9 @@ export type ScriptTypeDescriptor = {
      * 是否为内建脚本类型
      */
     is_builtin?: boolean;
+    /**
+     * 当前是否可用
+     */
+    available?: boolean;
 };
 

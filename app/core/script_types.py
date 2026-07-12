@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import importlib.metadata as importlib_metadata
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -34,6 +35,9 @@ logger = get_logger("脚本类型注册表")
 
 TASK_MODES = ("AutoProxy", "ManualReview", "ScriptConfig")
 SCRIPT_TYPE_ENTRY_POINT_GROUPS = ("auto_mas.script_types", "automas.script_types")
+SCRIPT_TYPE_ALIASES = {
+    "Okef": "OkScript",
+}
 LEGACY_SCRIPT_TYPE_METADATA = (
     {
         "type_key": "MAA",
@@ -54,6 +58,26 @@ LEGACY_SCRIPT_TYPE_METADATA = (
         "icon": "SRC",
         "editor_kind": "builtin:src",
         "is_builtin": True,
+    },
+    {
+        "type_key": "MaaEnd",
+        "display_name": "MaaEnd脚本",
+        "script_class_name": "MaaEndConfig",
+        "user_class_name": "MaaEndUserConfig",
+        "supported_modes": ("AutoProxy", "ManualReview", "ScriptConfig"),
+        "icon": "MaaEnd",
+        "editor_kind": "builtin:maaend",
+        "is_builtin": True,
+    },
+    {
+        "type_key": "M9A",
+        "display_name": "M9A脚本",
+        "script_class_name": "M9AConfig",
+        "user_class_name": "M9AUserConfig",
+        "supported_modes": ("AutoProxy", "ScriptConfig"),
+        "icon": "M9A",
+        "editor_kind": "builtin:m9a",
+        "is_builtin": False,
     },
     {
         "type_key": "General",
@@ -90,6 +114,7 @@ class ScriptTypeProvider:
     script_schema: dict[str, Any] | None = None
     user_schema: dict[str, Any] | None = None
     icon: str | None = None
+    icon_path: str | None = None
     docs_url: str | None = None
     editor_kind: str = "schema"
     legacy_config_class_name: str | None = None
@@ -127,6 +152,7 @@ class ScriptTypeRegistry:
         self._providers_by_user_class: dict[str, ScriptTypeProvider] = {}
         self._provider_owners: dict[str, str | None] = {}
         self._bootstrapped = False
+        self._bootstrap_lock = threading.Lock()
 
     def register(self, provider: ScriptTypeProvider, owner: str | None = None) -> None:
         """注册脚本类型提供者。"""
@@ -165,6 +191,16 @@ class ScriptTypeRegistry:
         self._providers[type_key] = provider
         self._providers_by_script_class[script_class_name] = provider
         self._providers_by_user_class[user_class_name] = provider
+        if (
+            provider.legacy_config_class_name
+            and provider.legacy_config_class_name != script_class_name
+        ):
+            self._providers_by_script_class[provider.legacy_config_class_name] = provider
+        if (
+            provider.legacy_user_config_class_name
+            and provider.legacy_user_config_class_name != user_class_name
+        ):
+            self._providers_by_user_class[provider.legacy_user_config_class_name] = provider
         self._provider_owners[type_key] = owner
 
     def unregister(self, type_key: str, owner: str | None = None) -> bool:
@@ -181,6 +217,16 @@ class ScriptTypeRegistry:
         self._providers.pop(type_key, None)
         self._providers_by_script_class.pop(provider.script_config_class.__name__, None)
         self._providers_by_user_class.pop(provider.user_config_class.__name__, None)
+        if (
+            provider.legacy_config_class_name
+            and provider.legacy_config_class_name != provider.script_config_class.__name__
+        ):
+            self._providers_by_script_class.pop(provider.legacy_config_class_name, None)
+        if (
+            provider.legacy_user_config_class_name
+            and provider.legacy_user_config_class_name != provider.user_config_class.__name__
+        ):
+            self._providers_by_user_class.pop(provider.legacy_user_config_class_name, None)
         self._provider_owners.pop(type_key, None)
         return True
 
@@ -198,6 +244,7 @@ class ScriptTypeRegistry:
     def get(self, type_key: str) -> ScriptTypeProvider:
         """根据脚本类型键获取提供者。"""
 
+        type_key = SCRIPT_TYPE_ALIASES.get(type_key, type_key)
         if type_key not in self._providers:
             raise KeyError(f"未注册的脚本类型: {type_key}")
         return self._providers[type_key]
@@ -241,9 +288,13 @@ class ScriptTypeRegistry:
         if self._bootstrapped:
             return
 
-        self._register_builtin_providers()
-        self._load_entry_point_providers(plugins_dir)
-        self._bootstrapped = True
+        with self._bootstrap_lock:
+            if self._bootstrapped:
+                return
+
+            self._register_builtin_providers()
+            self._load_entry_point_providers(plugins_dir)
+            self._bootstrapped = True
 
     def _register_builtin_providers(self) -> None:
         """注册内建脚本类型。"""
@@ -253,8 +304,12 @@ class ScriptTypeRegistry:
             HSRUserConfig,
             M9AConfig,
             M9AUserConfig,
+            MaaEndConfig,
+            MaaEndUserConfig,
             MaaFWConfig,
             MaaFWUserConfig,
+            OkefConfig,
+            OkefUserConfig,
             OkwwConfig,
             SrcConfig,
             SrcUserConfig,
@@ -306,6 +361,18 @@ class ScriptTypeRegistry:
                 manager_factory=_lazy_manager("app.task.MaaFW.manager", "MaaFWManager"),
                 icon="MaaFW",
                 editor_kind="builtin:maafw",
+                metadata={"framework": "maafw"},
+                is_builtin=True,
+            ),
+            ScriptTypeProvider(
+                type_key="MaaEnd",
+                display_name="MaaEnd脚本",
+                script_config_class=MaaEndConfig,
+                user_config_class=MaaEndUserConfig,
+                supported_modes=("AutoProxy", "ManualReview", "ScriptConfig"),
+                manager_factory=_lazy_manager("app.task.MaaEnd.manager", "MaaEndManager"),
+                icon="MaaEnd",
+                editor_kind="builtin:maaend",
                 is_builtin=True,
             ),
             ScriptTypeProvider(
@@ -317,6 +384,19 @@ class ScriptTypeRegistry:
                 manager_factory=_lazy_manager("app.task.HSR.manager", "HSRManager"),
                 icon="HSR",
                 editor_kind="builtin:hsr",
+                is_builtin=True,
+            ),
+            ScriptTypeProvider(
+                type_key="OkScript",
+                display_name="ok-script 项目",
+                script_config_class=OkefConfig,
+                user_config_class=OkefUserConfig,
+                supported_modes=("AutoProxy",),
+                manager_factory=_lazy_manager("app.task.Ok.manager", "OkScriptManager"),
+                icon="General",
+                editor_kind="builtin:ok-script",
+                legacy_config_class_name="OkefConfig",
+                legacy_user_config_class_name="OkefUserConfig",
                 is_builtin=True,
             ),
             ScriptAdapterDefinition(
@@ -421,6 +501,8 @@ def build_descriptor(provider: ScriptTypeProvider) -> dict[str, Any]:
         "type_key": provider.type_key,
         "display_name": provider.display_name,
         "icon": provider.icon,
+        "icon_url": f"/api/script-types/{provider.type_key}/icon" if provider.icon_path else None,
+        "theme_color": provider.metadata.get("theme_color"),
         "docs_url": provider.docs_url,
         "editor_kind": provider.editor_kind,
         "supported_modes": list(provider.supported_modes),
@@ -429,6 +511,7 @@ def build_descriptor(provider: ScriptTypeProvider) -> dict[str, Any]:
         "legacy_config_class_name": provider.legacy_config_class_name,
         "legacy_user_config_class_name": provider.legacy_user_config_class_name,
         "is_builtin": provider.is_builtin,
+        "available": provider.metadata.get("available", True) is not False,
     }
 
 
@@ -569,6 +652,10 @@ def is_script_config_compatible_with_type_key(
     """判断脚本配置是否可兼容指定脚本类型键。"""
 
     normalized_type_key = str(type_key or "").strip()
+    normalized_type_key = SCRIPT_TYPE_ALIASES.get(
+        normalized_type_key,
+        normalized_type_key,
+    )
     if not normalized_type_key:
         return False
 
@@ -672,6 +759,7 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
         MaaConfig,
         MaaFWConfig,
         MaaUserConfig,
+        OkefConfig,
         OkwwConfig,
         SrcConfig,
         SrcUserConfig,
@@ -683,6 +771,7 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
         M9AConfig,
         MaaFWConfig,
         OkwwConfig,
+        OkefConfig,
         HSRConfig,
     )
     for config_class in builtin_script_types:
@@ -696,6 +785,7 @@ def _bind_builtin_script_config_models(global_config: Any) -> None:
     M9AConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
     MaaFWConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
     OkwwConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
+    OkefConfig.related_config["EmulatorConfig"] = global_config.EmulatorConfig
     MaaUserConfig.related_config["PlanConfig"] = global_config.PlanConfig
 
     _ = LegacyGeneralUserConfig
@@ -721,7 +811,13 @@ def _resolve_legacy_config_classes(
     from app.models.config import (
         GeneralConfig,
         GeneralUserConfig,
+        M9AConfig,
+        M9AUserConfig,
         MaaConfig,
+        MaaEndConfig,
+        MaaEndUserConfig,
+        MaaFWConfig,
+        MaaFWUserConfig,
         MaaUserConfig,
         SrcConfig,
         SrcUserConfig,
@@ -729,11 +825,17 @@ def _resolve_legacy_config_classes(
 
     script_classes: dict[str, type[ConfigBase]] = {
         "GeneralConfig": GeneralConfig,
+        "M9AConfig": M9AConfig,
         "MaaConfig": MaaConfig,
+        "MaaEndConfig": MaaEndConfig,
+        "MaaFWConfig": MaaFWConfig,
         "SrcConfig": SrcConfig,
     }
     user_classes: dict[str, type[ConfigBase]] = {
         "GeneralUserConfig": GeneralUserConfig,
+        "M9AUserConfig": M9AUserConfig,
+        "MaaEndUserConfig": MaaEndUserConfig,
+        "MaaFWUserConfig": MaaFWUserConfig,
         "MaaUserConfig": MaaUserConfig,
         "SrcUserConfig": SrcUserConfig,
     }

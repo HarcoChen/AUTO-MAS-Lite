@@ -30,7 +30,9 @@
     <template #title>
       <a-space>
         <span>{{ userName || '用户配置' }}</span>
-        <a-tag :color="getScriptTypeTagColor(scriptType)">{{ scriptDisplayName }}</a-tag>
+        <a-tag :color="getScriptTypeTagColor(scriptType, scriptThemeColor)">
+          {{ scriptDisplayName }}
+        </a-tag>
       </a-space>
     </template>
 
@@ -57,7 +59,7 @@
   </a-card>
 
   <a-card v-if="isOkwwAdapter && userId" class="config-card okww-config-card">
-    <OkwwConfigEditor
+    <OkScriptConfigEditor
       :script-id="scriptId"
       :user-id="userId"
       endpoint-prefix="/plugin/okww/configs"
@@ -89,8 +91,8 @@ import { message } from 'ant-design-vue'
 import HeaderSchemaActionButton from '@/components/HeaderSchemaActionButton.vue'
 import SchemaForm from '@/components/SchemaForm.vue'
 import SchemaActionSessionMask from '@/components/SchemaActionSessionMask.vue'
-import OkwwConfigEditor from '@/views/OkwwUserEdit/OkwwConfigEditor.vue'
 import MaaEndTaskEditor from '@/views/MaaEndUserEdit/MaaEndTaskEditor.vue'
+import OkScriptConfigEditor from '@/views/OkScriptUserEdit/OkScriptConfigEditor.vue'
 import { useSchemaActionRunner } from '@/composables/useSchemaActionRunner'
 import { useWebSocket, type WebSocketBaseMessage } from '@/composables/useWebSocket'
 import { useScriptRegistryApi } from '@/composables/useScriptRegistryApi'
@@ -127,6 +129,7 @@ const scriptName = ref('')
 const userName = ref('')
 const scriptType = ref('')
 const scriptEditorKind = ref('')
+const scriptThemeColor = ref<string | null>(null)
 const scriptDisplayName = ref('')
 const scriptConfig = ref<MaaEndAdapterScriptConfig>({})
 const docsUrl = ref<string | null>(null)
@@ -270,6 +273,7 @@ const loadData = async ({
     scriptConfig.value = cloneValue(scriptRecord.config || {}) as MaaEndAdapterScriptConfig
     scriptType.value = normalizedScript.type
     scriptEditorKind.value = normalizedScript.editorKind || ''
+    scriptThemeColor.value = normalizedScript.themeColor || null
     scriptDisplayName.value = normalizedScript.displayName || normalizedScript.type
     docsUrl.value = normalizedScript.docsUrl || null
     supportedModes.value = normalizedScript.supportedModes || []

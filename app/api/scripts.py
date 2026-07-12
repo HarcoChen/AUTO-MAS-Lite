@@ -22,6 +22,8 @@
 
 
 import asyncio
+import importlib
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -29,19 +31,18 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from app.core import Config
 from app.models.schema import *
-from app.task.Okww.AutoProxy import _OKWW_REL_CONFIG_DIR
+from app.task.Ok.common.provider import ok_script_mas_config_dir
+from app.task.Ok.providers import detect_ok_script_provider
+from app.task.Ok.providers.okww import OKWW_PROVIDER
 
 router = APIRouter(prefix="/api/scripts", tags=["脚本管理"])
 
 
-def _okww_mas_config_dir(script_id: str, user_id: str) -> Path:
-    return Path.cwd() / "data" / script_id / user_id / "ConfigFile"
-
-
-def _okww_config_file_path(config_dir: Path, filename: str) -> Path:
+def _ok_script_config_file_path(config_dir: Path, filename: str) -> Path:
     file_path = Path(filename)
     if (
         file_path.name != filename
@@ -50,6 +51,88 @@ def _okww_config_file_path(config_dir: Path, filename: str) -> Path:
     ):
         raise ValueError("配置文件名非法")
     return config_dir / filename
+
+
+def _read_json_file(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        import json
+
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _write_json_file_atomic(path: Path, data: dict[str, Any]) -> None:
+    import json
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _copy_tree_atomic(source_dir: Path, target_dir: Path) -> None:
+    """通过临时目录初始化用户配置，避免留下半份配置。"""
+
+    if not source_dir.is_dir():
+        return
+
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    tmp_dir = target_dir.with_name(target_dir.name + ".tmp")
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    shutil.copytree(source_dir, tmp_dir)
+    shutil.rmtree(target_dir, ignore_errors=True)
+    tmp_dir.rename(target_dir)
+
+
+def _ensure_okww_user_config_defaults(config_dir: Path, source_dir: Path | None) -> None:
+    if source_dir is None or not source_dir.is_dir():
+        return
+    from app.task.Okww.config_schema import get_all_config_info
+
+    config_dir.mkdir(parents=True, exist_ok=True)
+    for info in get_all_config_info():
+        filename = str(info["filename"])
+        source_path = source_dir / filename
+        if not source_path.is_file():
+            continue
+        current_path = _ok_script_config_file_path(config_dir, filename)
+        source_data = _read_json_file(source_path)
+        current_data = _read_json_file(current_path)
+        merged_data = {**source_data, **current_data}
+        if merged_data != current_data:
+            _write_json_file_atomic(current_path, merged_data)
+
+
+def _resolve_ok_script_provider(script_id: str):
+    """读取当前通用 ok-script 脚本并解析其项目 provider。"""
+
+    script_config = Config.ScriptConfig[uuid.UUID(script_id)]
+    if type(script_config).__name__ != "OkefConfig":
+        raise ValueError("指定脚本不是 ok-script 项目")
+
+    root_path = Path(str(script_config.get("Info", "RootPath") or ""))
+    provider = detect_ok_script_provider(
+        root_path,
+        script_config.get("Info", "ResourceName"),
+    )
+    if provider is None:
+        raise ValueError("当前 ok-script 项目尚未适配")
+    return script_config, root_path, provider
+
+
+def _load_ok_script_schema(provider):
+    """按 provider 载入隔离的配置 schema 实现。"""
+
+    schema_module = importlib.import_module(provider.config_schema_module)
+    return (
+        getattr(schema_module, "build_fields_for_config"),
+        getattr(schema_module, provider.config_info_loader),
+        getattr(schema_module, f"load_{provider.resource_name.replace('-', '')}_option_labels"),
+    )
 
 
 _MAAFW_IMAGE_SUFFIXES = {
@@ -69,6 +152,15 @@ def _maafw_asset_file_path(root: str, asset_path: str) -> Path:
     root_path = Path(root).resolve()
     if not root_path.is_dir():
         raise ValueError("MaaFW 项目目录不存在")
+
+    if not (root_path / "interface.json").is_file() and not (
+        root_path / "interface.jsonc"
+    ).is_file():
+        raise ValueError("MaaFW asset root must be an interface project root")
+
+    from automas_maafw_interface.service import MaaFWInterfaceService
+
+    MaaFWInterfaceService().load(root_path)
 
     normalized_asset_path = asset_path.replace("\\", "/").strip()
     relative_path = Path(normalized_asset_path)
@@ -102,32 +194,36 @@ def _build_maafw_agent_env_info_items(agent_plans: list[Any]) -> list[MaaFWAgent
     ]
 
 
-SCRIPT_BOOK = {
+SCRIPT_BOOK: dict[str, type[BaseModel]] = {
     "MaaConfig": MaaConfig,
     "SrcConfig": SrcConfig,
     "M9AConfig": M9AConfig,
     "MaaFWConfig": MaaFWConfig,
     "GeneralConfig": GeneralConfig,
     "OkwwConfig": OkwwConfig,
+    "OkefConfig": OkefConfig,
     "HSRConfig": HSRConfig,
+    "PluginScriptConfig": PluginScriptConfig,
 }
-USER_BOOK = {
+USER_BOOK: dict[str, type[BaseModel]] = {
     "MaaConfig": MaaUserConfig,
     "SrcConfig": SrcUserConfig,
     "M9AConfig": M9AUserConfig,
     "MaaFWConfig": MaaFWUserConfig,
     "GeneralConfig": GeneralUserConfig,
     "OkwwConfig": OkwwUserConfig,
+    "OkefConfig": OkefUserConfig,
     "HSRConfig": HSRUserConfig,
+    "PluginScriptConfig": PluginUserConfig,
 }
 
 
 def _script_provider_type_name(provider: Any) -> str:
-    return provider.script_config_class.__name__
+    return provider.legacy_config_class_name or provider.script_config_class.__name__
 
 
 def _user_provider_type_name(provider: Any) -> str:
-    return provider.user_config_class.__name__
+    return provider.legacy_user_config_class_name or provider.user_config_class.__name__
 
 
 def _plugin_type_key(config_payload: dict[str, Any]) -> str:
@@ -137,19 +233,37 @@ def _plugin_type_key(config_payload: dict[str, Any]) -> str:
     return ""
 
 
+def _plugin_provider(type_key: str):
+    try:
+        from app.core.script_types import script_type_registry
+
+        return script_type_registry.get(type_key)
+    except Exception:
+        return None
+
+
+def _script_schema_for_config(config: Any) -> type[BaseModel]:
+    return SCRIPT_BOOK.get(type(config).__name__, PluginScriptConfig)
+
+
+def _user_schema_for_script_config(config: Any) -> type[BaseModel]:
+    return USER_BOOK.get(type(config).__name__, PluginUserConfig)
+
+
 async def _script_response_payload(config: Any) -> dict[str, Any] | BaseModel:
     from app.core.script_config_codec import storage_to_form
-    from app.core.script_types import script_type_registry
     from app.models.plugin_script_config import PluginScriptConfig
 
     if isinstance(config, PluginScriptConfig):
-        provider = script_type_registry.get(config.get("Meta", "PluginTypeKey"))
+        provider = _plugin_provider(str(config.get("Meta", "PluginTypeKey") or "").strip())
+        if provider is None:
+            return PluginScriptConfig(**(await config.toDict()))
         return await storage_to_form(
             provider,
             config.get("PluginData", "Config"),
             "script",
         )
-    return SCRIPT_BOOK[type(config).__name__](**(await config.toDict()))
+    return _script_schema_for_config(config)(**(await config.toDict()))
 
 
 async def _script_payload_from_dict(
@@ -157,13 +271,15 @@ async def _script_payload_from_dict(
     payload: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any] | BaseModel]:
     from app.core.script_config_codec import storage_to_form
-    from app.core.script_types import script_type_registry
 
     if index_item.get("type") != "PluginScriptConfig":
-        return index_item, SCRIPT_BOOK[index_item.get("type", "GeneralConfig")](**payload)
+        schema_model = SCRIPT_BOOK.get(index_item.get("type", "GeneralConfig"), GeneralConfig)
+        return index_item, schema_model(**payload)
 
     type_key = _plugin_type_key(payload)
-    provider = script_type_registry.get(type_key)
+    provider = _plugin_provider(type_key)
+    if provider is None:
+        return index_item, PluginScriptConfig(**payload)
     normalized_index = dict(index_item)
     normalized_index["type"] = _script_provider_type_name(provider)
     plugin_data = payload.get("PluginData")
@@ -173,18 +289,19 @@ async def _script_payload_from_dict(
 
 async def _user_response_payload(script_id: str, config: Any) -> dict[str, Any] | BaseModel:
     from app.core.script_config_codec import storage_to_form
-    from app.core.script_types import script_type_registry
     from app.models.plugin_script_config import PluginUserConfig
 
     script_config = Config.ScriptConfig[uuid.UUID(script_id)]
     if isinstance(config, PluginUserConfig):
-        provider = script_type_registry.get(script_config.get("Meta", "PluginTypeKey"))
+        provider = _plugin_provider(str(script_config.get("Meta", "PluginTypeKey") or "").strip())
+        if provider is None:
+            return PluginUserConfig(**(await config.toDict()))
         return await storage_to_form(
             provider,
             config.get("PluginData", "Config"),
             "user",
         )
-    return USER_BOOK[type(script_config).__name__](**(await config.toDict()))
+    return _user_schema_for_script_config(script_config)(**(await config.toDict()))
 
 
 async def _user_payload_from_dict(
@@ -193,19 +310,72 @@ async def _user_payload_from_dict(
     payload: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any] | BaseModel]:
     from app.core.script_config_codec import storage_to_form
-    from app.core.script_types import script_type_registry
 
     script_config = Config.ScriptConfig[uuid.UUID(script_id)]
     if index_item.get("type") != "PluginUserConfig":
-        return index_item, USER_BOOK[type(script_config).__name__](**payload)
+        return index_item, _user_schema_for_script_config(script_config)(**payload)
 
     type_key = script_config.get("Meta", "PluginTypeKey")
-    provider = script_type_registry.get(type_key)
+    provider = _plugin_provider(str(type_key or "").strip())
+    if provider is None:
+        return index_item, PluginUserConfig(**payload)
     normalized_index = dict(index_item)
     normalized_index["type"] = _user_provider_type_name(provider)
     plugin_data = payload.get("PluginData")
     raw_config = plugin_data.get("Config") if isinstance(plugin_data, dict) else "{}"
     return normalized_index, await storage_to_form(provider, raw_config, "user")
+
+
+def _is_maafw_framework_script(script_config: Any) -> bool:
+    """判定脚本配置是否属于 MaaFW 框架运行链路（含 M9A 等 pack 形态）。"""
+
+    from app.core.script_types import script_type_registry
+
+    # 插件形态脚本统一存为 PluginScriptConfig，类名不进注册表，
+    # 必须按 Meta.PluginTypeKey 解析 provider，否则通用 MaaFW 项目会被误判。
+    try:
+        from app.models.plugin_script_config import PluginScriptConfig
+
+        if isinstance(script_config, PluginScriptConfig):
+            type_key = str(script_config.get("Meta", "PluginTypeKey") or "").strip()
+            if not type_key:
+                return False
+            provider = script_type_registry.get(type_key)
+            return provider.metadata.get("framework") == "maafw"
+    except Exception:
+        pass
+
+    config_class_name = type(script_config).__name__
+    try:
+        provider = script_type_registry.get_by_script_config(script_config)
+        return provider.metadata.get("framework") == "maafw"
+    except Exception:
+        # 注册表未就绪或类名未注册时，回退到已知 legacy 类名。
+        return config_class_name in {"MaaFWConfig", "M9AConfig"}
+
+
+async def _resolve_maafw_script_form(script_config: Any) -> dict[str, Any]:
+    """解析 MaaFW 框架脚本的表单态配置（插件形态与 legacy 均适用）。
+
+    插件形态脚本统一存为 PluginScriptConfig，真实配置在 PluginData.Config
+    （JSON 字符串），须经 storage_to_form 解码后才有 Info.Path / Update.* 字段；
+    legacy MaaFWConfig/M9AConfig 直接 toDict 即为表单态。
+    """
+    from app.models.plugin_script_config import PluginScriptConfig
+
+    if isinstance(script_config, PluginScriptConfig):
+        from app.core.script_config_codec import storage_to_form
+
+        type_key = str(script_config.get("Meta", "PluginTypeKey") or "").strip()
+        provider = _plugin_provider(type_key)
+        if provider is None:
+            raise RuntimeError(f"无法解析插件脚本类型: {type_key or '(空)'}")
+        raw = script_config.get("PluginData", "Config")
+        return await storage_to_form(provider, raw, "script")
+
+    payload = await script_config.toDict()
+    payload.pop("SubConfigsInfo", None)
+    return payload
 
 
 @router.post(
@@ -748,57 +918,6 @@ async def reorder_webhook(webhook: WebhookReorderIn = Body(...)) -> OutBase:
 
 
 @router.post(
-    "/m9a/tasks/available",
-    tags=["M9A"],
-    summary="获取 M9A 可用任务列表（排除 standalone 任务）",
-    status_code=200,
-)
-async def get_m9a_available_tasks(script_id: str):
-    """
-    获取 M9A 可用任务列表（排除 standalone 任务）
-
-    前端调用此接口获取可选择的任务列表，
-    用于展示在用户编辑界面的任务选择区域。
-
-    Args:
-        script_id: M9A 脚本 ID
-
-    Returns:
-        dict: 包含任务列表的响应
-    """
-    from app.task.M9A.task_loader import M9ATaskLoader
-    from pathlib import Path
-
-    try:
-        script_config = Config.ScriptConfig[uuid.UUID(script_id)]
-        m9a_path = Path(script_config.get("Info", "Path"))
-        loader = await asyncio.to_thread(M9ATaskLoader.get_cached, m9a_path)
-        
-        # 获取可用任务，并添加完整定义（包括 option 和 _option_definitions）
-        available_tasks = loader.get_available_tasks()
-        result_tasks = []
-        
-        for task in available_tasks:
-            full_def = loader.get_full_definition(task["name"])
-            if full_def:
-                result_tasks.append(full_def)
-        
-        return {
-            "code": 200,
-            "status": "success",
-            "message": f"共 {len(result_tasks)} 个可用任务",
-            "data": result_tasks
-        }
-    except Exception as e:
-        return {
-            "code": 500,
-            "status": "error",
-            "message": f"{type(e).__name__}: {str(e)}",
-            "data": []
-        }
-
-
-@router.post(
     "/maafw/interface/preview",
     tags=["MaaFW"],
     summary="预览 MaaFW ProjectInterface",
@@ -809,16 +928,11 @@ async def preview_maafw_interface(
     payload: MaaFWInterfacePreviewIn = Body(...),
 ) -> MaaFWInterfacePreviewOut:
     """读取 MaaFW 项目目录中的 interface.json，返回 MAS UI 可消费的摘要。"""
-    from app.task.MaaFW.interface_loader import (
-        MaaFWInterfaceLoadError,
-        load_interface_model_cached,
-    )
-    from app.task.MaaFW.interface_preview import build_maafw_interface_preview_data
+    from automas_maafw_interface.loader import MaaFWInterfaceLoadError
+    from automas_maafw_interface.service import MaaFWInterfaceService
 
     try:
-        root_path = Path(payload.path).resolve()
-        interface = load_interface_model_cached(root_path)
-        data = build_maafw_interface_preview_data(root_path, interface)
+        data = MaaFWInterfaceService().preview(Path(payload.path).resolve())
     except MaaFWInterfaceLoadError as e:
         return MaaFWInterfacePreviewOut(
             code=400,
@@ -835,8 +949,8 @@ async def preview_maafw_interface(
         )
 
     return MaaFWInterfacePreviewOut(
-        message=f"已读取 MaaFW 项目 {data.project.name}，共 {len(data.tasks)} 个任务",
-        data=data,
+        message=f"已读取 MaaFW 项目 {data.project['name']}，共 {len(data.tasks)} 个任务",
+        data=data.model_dump(mode="json"),
     )
 
 
@@ -851,12 +965,10 @@ async def update_maafw_project(
     payload: MaaFWProjectUpdateIn = Body(...),
 ) -> MaaFWProjectUpdateOut:
     """按脚本更新配置手动检查并应用 MaaFW 项目资源更新。"""
-    from app.task.MaaFW.interface_loader import (
-        MaaFWInterfaceLoadError,
-        load_interface_model_cached,
-    )
-    from app.task.MaaFW.project_updater import update_maafw_project_if_needed
-    from app.task.MaaFW.runner import prepare_maafw_agent_python_envs
+    from automas_maafw_agent_env.service import MaaFWAgentEnvService
+    from automas_maafw_interface.loader import MaaFWInterfaceLoadError
+    from automas_maafw_interface.service import MaaFWInterfaceService
+    from automas_maafw_project_update.service import MaaFWProjectUpdateService
 
     logs: list[str] = []
     current_version = ""
@@ -884,7 +996,7 @@ async def update_maafw_project(
 
     try:
         script_config = Config.ScriptConfig[script_uuid]
-        if type(script_config).__name__ != "MaaFWConfig":
+        if not _is_maafw_framework_script(script_config):
             append_log("指定脚本不是 MaaFW 项目")
             return MaaFWProjectUpdateOut(
                 code=400,
@@ -898,7 +1010,14 @@ async def update_maafw_project(
                 ),
             )
 
-        project_path_raw = str(script_config.get("Info", "Path") or "").strip()
+        # 插件形态脚本的 Info.Path/Update.* 藏在 PluginData.Config，需先解码成表单态
+        script_form = await _resolve_maafw_script_form(script_config)
+        info_group = script_form.get("Info")
+        info_group = info_group if isinstance(info_group, dict) else {}
+        update_group = script_form.get("Update")
+        update_group = update_group if isinstance(update_group, dict) else {}
+
+        project_path_raw = str(info_group.get("Path") or "").strip()
         if not project_path_raw:
             append_log("请先配置 MaaFW 项目目录")
             return MaaFWProjectUpdateOut(
@@ -914,31 +1033,39 @@ async def update_maafw_project(
             )
 
         project_path = Path(project_path_raw).resolve()
-        interface_model = load_interface_model_cached(project_path)
+        interface_model = MaaFWInterfaceService().load(project_path)
         current_version = interface_model.version or ""
 
         mirror_cdk = (
-            script_config.get("Update", "MirrorChyanCDK")
+            update_group.get("MirrorChyanCDK")
             or Config.get("Update", "MirrorChyanCDK")
         )
-        channel = script_config.get("Update", "Channel") or Config.get("Update", "Channel")
-        update_result = await update_maafw_project_if_needed(
+        channel = update_group.get("Channel") or Config.get("Update", "Channel")
+        source_config = None
+        try:
+            from automas_script_maafw.schema import build_source_config
+
+            source_config = build_source_config(script_form)
+        except Exception as e:
+            append_log(f"读取脚本更新源配置失败，回退默认更新源: {type(e).__name__}: {e}")
+        update_result = await MaaFWProjectUpdateService().update_if_needed(
             project_path,
             interface_model,
             mirror_cdk=mirror_cdk,
             channel=channel,
             proxy=Config.proxy,
             send_log=append_log,
+            source_config=source_config,
         )
 
         if update_result.updated:
-            refreshed_interface = load_interface_model_cached(
+            refreshed_interface = MaaFWInterfaceService().load(
                 project_path,
                 force_reload=True,
             )
             append_log("MaaFW 项目已更新，准备 Agent Python 环境")
             await asyncio.to_thread(
-                prepare_maafw_agent_python_envs,
+                MaaFWAgentEnvService().prepare_env,
                 project_path,
                 refreshed_interface,
                 send_log=append_log,
@@ -1008,30 +1135,23 @@ async def prepare_maafw_agent_env(
 ) -> MaaFWAgentEnvPrepareOut:
     """Prepare MaaFW Runner and agent Python envs before starting tasks."""
 
-    from app.task.MaaFW.interface_loader import (
-        MaaFWInterfaceLoadError,
-        load_interface_model_cached,
-    )
-    from app.task.MaaFW.AutoProxy import prepare_maafw_runner_env
-    from app.task.MaaFW.runner import prepare_maafw_agent_python_envs
+    from automas_maafw_agent_env.service import MaaFWAgentEnvService
+    from automas_maafw_interface.loader import MaaFWInterfaceLoadError
+    from automas_maafw_interface.service import MaaFWInterfaceService
 
     logs: list[str] = []
     root_path: Path | None = None
     agent_plans: list[Any] = []
     try:
         root_path = Path(payload.path).resolve()
-        interface = load_interface_model_cached(root_path)
-        await asyncio.to_thread(
-            prepare_maafw_runner_env,
-            root_path,
-            send_log=logs.append,
-        )
-        agent_plans = await asyncio.to_thread(
-            prepare_maafw_agent_python_envs,
+        interface = MaaFWInterfaceService().load(root_path)
+        prepare_result = await asyncio.to_thread(
+            MaaFWAgentEnvService().prepare_env,
             root_path,
             interface,
             send_log=logs.append,
         )
+        agent_plans = prepare_result.plans
         agents = _build_maafw_agent_env_info_items(agent_plans)
         data = MaaFWAgentEnvPrepareData(
             path=str(root_path),
@@ -1129,26 +1249,22 @@ async def preview_maafw_windows(
     payload: MaaFWWindowPreviewIn = Body(...),
 ) -> MaaFWWindowPreviewOut:
     """按 interface.json 中的 Win32 窗口规则扫描本机桌面窗口。"""
-    from app.task.MaaFW.interface_loader import (
-        MaaFWInterfaceLoadError,
-        load_interface_model_cached,
-    )
-    from app.task.MaaFW.window_service import (
-        list_desktop_windows,
-        match_controller_windows,
-    )
+    from automas_maafw_controller_win32.service import MaaFWWin32ControllerService
+    from automas_maafw_interface.loader import MaaFWInterfaceLoadError
+    from automas_maafw_interface.service import MaaFWInterfaceService
 
     try:
         root_path = Path(payload.path).resolve()
-        interface = load_interface_model_cached(root_path)
+        interface = MaaFWInterfaceService().load(root_path)
         controllers = _select_maafw_window_controllers(
             interface,
             payload.controllerName,
         )
-        desktop_windows = list_desktop_windows()
+        win32_service = MaaFWWin32ControllerService()
+        win32_windows = win32_service.list_windows()
         windows: list[MaaFWDesktopWindowInfo] = []
         for controller in controllers:
-            for window in match_controller_windows(controller, desktop_windows):
+            for window in win32_service.match_controller_windows(controller, win32_windows):
                 windows.append(
                     MaaFWDesktopWindowInfo(
                         hWnd=window.hWnd,
@@ -1253,7 +1369,6 @@ async def get_okww_configs_list(script_id: str, user_id: str):
     """
     try:
         import json
-        import shutil
         from app.task.Okww.config_schema import (
             get_all_config_info, build_fields_for_config, load_okww_option_labels,
         )
@@ -1265,16 +1380,14 @@ async def get_okww_configs_list(script_id: str, user_id: str):
         option_labels = load_okww_option_labels(root_path) if root_path else {}
 
         # 详细模式：每个用户独立持有一份 OK-WW 配置。
-        mas_config_dir = _okww_mas_config_dir(script_id, user_id)
+        mas_config_dir = ok_script_mas_config_dir(script_id, user_id)
 
         # ok-ww 源配置目录（从 RootPath 派生，用于自动初始化）
-        okww_configs_dir = Path(root_path) / _OKWW_REL_CONFIG_DIR if root_path else None
+        okww_configs_dir = Path(root_path) / OKWW_PROVIDER.config_dir if root_path else None
 
-        # 自动初始化：用户目录为空时从 ok-ww configs 复制默认配置
-        need_init = not mas_config_dir.exists() or not any(mas_config_dir.iterdir())
-        if need_init and okww_configs_dir and okww_configs_dir.is_dir():
-            mas_config_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(okww_configs_dir, mas_config_dir, dirs_exist_ok=True)
+        # 自动初始化并按需补齐字段：逐文件将源默认值与用户现值合并（tmp+rename 原子写），
+        # 避免旧用户升级后缺失新配置字段，也避免非原子 copytree 中断损坏配置。
+        _ensure_okww_user_config_defaults(mas_config_dir, okww_configs_dir)
 
         configs_info = get_all_config_info()
 
@@ -1342,12 +1455,12 @@ async def batch_update_okww_configs(
         import json
 
         # 写入用户配置目录
-        mas_config_dir = _okww_mas_config_dir(script_id, user_id)
+        mas_config_dir = ok_script_mas_config_dir(script_id, user_id)
         mas_config_dir.mkdir(parents=True, exist_ok=True)
 
         updated_files = []
         for filename, data in configs.items():
-            filepath = _okww_config_file_path(mas_config_dir, filename)
+            filepath = _ok_script_config_file_path(mas_config_dir, filename)
             existing_data = {}
             if filepath.exists():
                 with open(filepath, "r", encoding="utf-8") as f:
@@ -1369,3 +1482,162 @@ async def batch_update_okww_configs(
             "status": "error",
             "message": f"{type(e).__name__}: {str(e)}",
         }
+
+
+@router.post(
+    "/ok-script/configs/list",
+    tags=["ok-script"],
+    summary="获取 ok-script 配置文件列表和 schema",
+    status_code=200,
+)
+async def get_ok_script_configs_list(script_id: str, user_id: str):
+    """根据当前 provider 获取隔离的用户配置文件和 schema。"""
+    try:
+        import json
+
+        _, root_path, provider = _resolve_ok_script_provider(script_id)
+        build_fields_for_config, get_config_info, load_option_labels = (
+            _load_ok_script_schema(provider)
+        )
+
+        option_labels = load_option_labels(root_path)
+        mas_config_dir = ok_script_mas_config_dir(script_id, user_id)
+        source_configs_dir = provider.config_path(root_path)
+
+        need_init = not mas_config_dir.exists() or not any(mas_config_dir.iterdir())
+        if need_init and source_configs_dir.is_dir():
+            await asyncio.to_thread(
+                _copy_tree_atomic,
+                source_configs_dir,
+                mas_config_dir,
+            )
+
+        configs_info = (
+            get_config_info(mas_config_dir)
+            if provider.config_info_uses_directory
+            else get_config_info()
+        )
+        result = []
+        for info in configs_info:
+            filename = info["filename"]
+            filepath = mas_config_dir / filename
+            current_data: dict[str, Any] = {}
+            if filepath.exists():
+                try:
+                    current_data = json.loads(filepath.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+            fields = build_fields_for_config(filename, current_data, option_labels)
+            result.append(
+                {
+                    **info,
+                    "fieldCount": len(fields),
+                    "fields": fields,
+                    "currentData": current_data,
+                }
+            )
+
+        return {
+            "code": 200,
+            "status": "success",
+            "message": f"共 {len(result)} 个配置文件",
+            "data": result,
+            "optionLabels": option_labels,
+            "configPath": str(mas_config_dir),
+            "provider": provider.build_client_metadata(),
+        }
+    except ValueError as e:
+        return {
+            "code": 400,
+            "status": "error",
+            "message": str(e),
+            "data": [],
+        }
+    except Exception as e:
+        return {
+            "code": 500,
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
+            "data": [],
+        }
+
+
+@router.post(
+    "/ok-script/configs/batch-update",
+    tags=["ok-script"],
+    summary="批量更新 ok-script 配置文件",
+    status_code=200,
+)
+async def batch_update_ok_script_configs(
+    script_id: str = Body(...),
+    user_id: str = Body(...),
+    configs: dict = Body(...),
+):
+    """批量更新当前 provider 对应的用户配置 JSON。"""
+    try:
+        import json
+
+        _resolve_ok_script_provider(script_id)
+        mas_config_dir = ok_script_mas_config_dir(script_id, user_id)
+        mas_config_dir.mkdir(parents=True, exist_ok=True)
+
+        updated_files = []
+        for filename, data in configs.items():
+            if not isinstance(data, dict):
+                raise ValueError(f"配置文件 {filename} 的内容必须是对象")
+            filepath = _ok_script_config_file_path(mas_config_dir, filename)
+            existing_data = {}
+            if filepath.exists():
+                with open(filepath, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+            existing_data.update(data)
+            _write_json_file_atomic(filepath, existing_data)
+            updated_files.append(filename)
+
+        return {
+            "code": 200,
+            "status": "success",
+            "message": f"已更新 {len(updated_files)} 个配置文件",
+            "data": updated_files,
+        }
+    except ValueError as e:
+        return {
+            "code": 400,
+            "status": "error",
+            "message": str(e),
+        }
+    except Exception as e:
+        return {
+            "code": 500,
+            "status": "error",
+            "message": f"{type(e).__name__}: {str(e)}",
+        }
+
+
+@router.post(
+    "/okef/configs/list",
+    tags=["OKEF"],
+    summary="获取 ok-script 配置文件列表和 schema（兼容入口）",
+    status_code=200,
+)
+async def get_okef_configs_list(script_id: str, user_id: str):
+    """保留旧 OK-EF API 路径，内部统一走 ok-script provider。"""
+
+    return await get_ok_script_configs_list(script_id, user_id)
+
+
+@router.post(
+    "/okef/configs/batch-update",
+    tags=["OKEF"],
+    summary="批量更新 ok-script 配置文件（兼容入口）",
+    status_code=200,
+)
+async def batch_update_okef_configs(
+    script_id: str = Body(...),
+    user_id: str = Body(...),
+    configs: dict = Body(...),
+):
+    """保留旧 OK-EF API 路径，内部统一走 ok-script provider。"""
+
+    return await batch_update_ok_script_configs(script_id, user_id, configs)
