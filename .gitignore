@@ -67,6 +67,12 @@ plugins/maaend_adapter/build/
 plugins/maaend_adapter/dist/
 plugins/maaend_adapter/**/*.egg-info/
 plugins/maaend_adapter/**/__pycache__/
+!/plugins/automas_plugin_mxu_import/
+!/plugins/automas_plugin_mxu_import/**
+plugins/automas_plugin_mxu_import/build/
+plugins/automas_plugin_mxu_import/dist/
+plugins/automas_plugin_mxu_import/**/*.egg-info/
+plugins/automas_plugin_mxu_import/**/__pycache__/
 !/plugins/automas_maafw_interface/
 !/plugins/automas_maafw_interface/**
 plugins/automas_maafw_interface/build/

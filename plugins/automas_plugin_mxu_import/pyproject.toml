@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automas-plugin-mxu-import"
+version = "0.1.0"
+description = "Import MXU task configuration as MaaFW task snapshots"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+dependencies = [
+    "automas-maafw-interface>=0.1.1",
+    "pydantic>=2",
+]
+
+[project.entry-points."auto_mas.plugins"]
+mxu_import = "automas_plugin_mxu_import.plugin:Plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+automas_plugin_mxu_import = ["py.typed"]

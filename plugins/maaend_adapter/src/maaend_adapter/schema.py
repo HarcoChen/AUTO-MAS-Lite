@@ -277,41 +277,6 @@ class MaaEndRunConfig(BaseModel):
     )
 
 
-class MaaEndActionConfig(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    Configure: bool = PluginField(
-        default=False,
-        title="配置 MaaEnd",
-        ui_type="button",
-        configurable=False,
-        action={
-            "label": "配置 MaaEnd",
-            "path": "/api/dispatch/start",
-            "method": "POST",
-            "payload": {"taskId": "{{scriptId}}", "mode": "ScriptConfig"},
-            "refresh": True,
-            "session": {
-                "response_task_id_key": "taskId",
-                "stop_path": "/api/dispatch/stop",
-                "stop_method": "POST",
-                "stop_payload": {"taskId": "{{session.websocketId}}"},
-                "overlay_title": "正在进行 MaaEnd 配置",
-                "overlay_description": (
-                    "请在 MaaEnd 窗口完成脚本级配置，然后返回此处保存配置。"
-                ),
-                "stop_label": "保存配置",
-                "start_message": "已启动 MaaEnd 配置",
-                "success_message": "MaaEnd 配置已完成",
-                "stop_message": "MaaEnd 配置已保存",
-                "timeout_ms": 1800000,
-                "timeout_auto_stop": True,
-                "timeout_message": "MaaEnd 配置会话已超时，正在自动保存配置...",
-            },
-        },
-    )
-
-
 class MaaEndConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -330,10 +295,6 @@ class MaaEndConfig(BaseModel):
         title="项目更新",
     )
     Run: MaaEndRunConfig = PluginField(default_factory=MaaEndRunConfig, title="运行配置")
-    Action: MaaEndActionConfig = PluginField(
-        default_factory=MaaEndActionConfig,
-        title="交互操作",
-    )
 
 
 class MaaEndUserInfoConfig(BaseModel):
@@ -524,41 +485,6 @@ class MaaEndUserNotifyConfig(BaseModel):
     ServerChanKey: str = PluginField(default="", title="ServerChan Key", sensitive=True)
 
 
-class MaaEndUserActionConfig(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    Configure: bool = PluginField(
-        default=False,
-        title="配置 MaaEnd",
-        ui_type="button",
-        configurable=False,
-        action={
-            "label": "配置 MaaEnd",
-            "path": "/api/dispatch/start",
-            "method": "POST",
-            "payload": {"taskId": "{{userId}}", "mode": "ScriptConfig"},
-            "refresh": True,
-            "session": {
-                "response_task_id_key": "taskId",
-                "stop_path": "/api/dispatch/stop",
-                "stop_method": "POST",
-                "stop_payload": {"taskId": "{{session.websocketId}}"},
-                "overlay_title": "正在配置 MaaEnd 用户",
-                "overlay_description": (
-                    "请在 MaaEnd 窗口完成当前用户配置，然后返回此处保存配置。"
-                ),
-                "stop_label": "保存配置",
-                "start_message": "已启动用户 {{userName}} 的 MaaEnd 配置",
-                "success_message": "用户 {{userName}} 的 MaaEnd 配置已完成",
-                "stop_message": "用户 {{userName}} 的 MaaEnd 配置已保存",
-                "timeout_ms": 1800000,
-                "timeout_auto_stop": True,
-                "timeout_message": "MaaEnd 用户配置会话已超时，正在自动保存配置...",
-            },
-        },
-    )
-
-
 class MaaEndUserConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -581,8 +507,4 @@ class MaaEndUserConfig(BaseModel):
     Notify: MaaEndUserNotifyConfig = PluginField(
         default_factory=MaaEndUserNotifyConfig,
         title="单独通知",
-    )
-    Action: MaaEndUserActionConfig = PluginField(
-        default_factory=MaaEndUserActionConfig,
-        title="交互操作",
     )

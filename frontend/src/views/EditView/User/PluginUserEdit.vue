@@ -107,6 +107,7 @@ import {
   normalizeScriptRecord,
 } from '@/utils/scriptRegistry'
 import { collectHeaderSchemaActions } from '@/utils/schemaActions'
+import type { MaaFWTaskSnapshot } from '@/types/script'
 
 const logger = window.electronAPI.getLogger('插件用户编辑')
 
@@ -161,7 +162,7 @@ interface MaaEndTaskEditorModel {
   controller: string
   resource: string
   selectedPreset: string
-  taskSnapshot: string | Record<string, unknown>
+  taskSnapshot: string | MaaFWTaskSnapshot
 }
 
 interface MaaEndAdapterScriptConfig {

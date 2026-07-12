@@ -8,10 +8,25 @@
           <span v-if="previewData.project.version">v{{ previewData.project.version }}</span>
         </div>
       </div>
-      <a-button :loading="interfaceLoading" :disabled="!projectPath" @click="reloadInterface(true)">
-        <template #icon><ReloadOutlined /></template>
-        重新读取 Interface
-      </a-button>
+      <a-space>
+        <a-button
+          v-if="mxuImportAvailable"
+          :loading="mxuLoading"
+          :disabled="!projectPath"
+          @click="openMxuImport"
+        >
+          <template #icon><ImportOutlined /></template>
+          从 MXU 导入
+        </a-button>
+        <a-button
+          :loading="interfaceLoading"
+          :disabled="!projectPath"
+          @click="reloadInterface(true)"
+        >
+          <template #icon><ReloadOutlined /></template>
+          重新读取 Interface
+        </a-button>
+      </a-space>
     </div>
 
     <a-alert
@@ -161,6 +176,54 @@
         </a-col>
       </a-row>
     </template>
+
+    <a-modal
+      v-model:open="mxuModalOpen"
+      title="从 MXU 导入任务配置"
+      ok-text="导入到当前用户"
+      cancel-text="取消"
+      :confirm-loading="mxuLoading"
+      :ok-button-props="{ disabled: !mxuPreview }"
+      @ok="applyMxuImport"
+    >
+      <a-form v-if="mxuPreview" layout="vertical">
+        <a-form-item label="MXU 实例">
+          <a-select
+            :value="mxuPreview.selected_instance_id"
+            :options="mxuInstanceOptions"
+            :loading="mxuLoading"
+            @change="selectMxuInstance"
+          />
+        </a-form-item>
+        <a-descriptions bordered size="small" :column="1">
+          <a-descriptions-item label="Controller">
+            {{ mxuPreview.controller || '未设置' }}
+          </a-descriptions-item>
+          <a-descriptions-item label="Resource">
+            {{ mxuPreview.resource || '未设置' }}
+          </a-descriptions-item>
+          <a-descriptions-item label="启用任务">
+            {{ selectedMxuInstance?.enabled_task_count || 0 }} /
+            {{ selectedMxuInstance?.task_count || 0 }}
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-alert
+          v-if="mxuPreview.warnings.length"
+          class="import-warning"
+          type="warning"
+          show-icon
+          message="导入时有以下提示"
+          :description="mxuPreview.warnings.join('；')"
+        />
+        <a-alert
+          v-else
+          class="import-warning"
+          type="success"
+          show-icon
+          message="配置与当前 Interface 匹配"
+        />
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -168,9 +231,10 @@
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import type { SelectProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
-import { DeleteOutlined, DragOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { DeleteOutlined, DragOutlined, ImportOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { buildMaaFWAssetUrl, useMaaFWApi } from '@/composables/useMaaFWApi'
+import { useMxuImportApi, type MxuImportPreview } from '@/composables/useMxuImportApi'
 import MaaFWDescriptionView from '@/views/EditView/User/MaaFWDescriptionView.vue'
 import MaaFWTaskOptionEditor from '@/views/EditView/User/MaaFWTaskOptionEditor.vue'
 import type {
@@ -204,7 +268,11 @@ const emit = defineEmits<{
 }>()
 
 const { loading: interfaceLoading, previewInterface } = useMaaFWApi()
+const { loading: mxuLoading, checkMxuImportAvailable, previewMxuConfig } = useMxuImportApi()
 const previewData = shallowRef<MaaFWInterfacePreviewData | null>(null)
+const mxuPreview = shallowRef<MxuImportPreview | null>(null)
+const mxuModalOpen = ref(false)
+const mxuImportAvailable = ref(false)
 const loadError = ref('')
 const selectedTaskName = ref('')
 const selectedPreset = ref('')
@@ -266,6 +334,7 @@ const activeTasks = computed(() =>
 const activeTaskNames = computed(() => new Set(activeTasks.value.map(task => task.name)))
 const orderedTasks = computed(() =>
   taskSnapshot.value.taskOrder
+    .filter(taskName => taskSnapshot.value.taskChecked[taskName] !== false)
     .map(taskName => taskByName.value.get(taskName))
     .filter(
       (task): task is MaaFWTaskInfo => task !== undefined && activeTaskNames.value.has(task.name)
@@ -279,7 +348,7 @@ const queuedTaskNames = computed({
   },
 })
 const availableTasks = computed(() => {
-  const queued = new Set(taskSnapshot.value.taskOrder)
+  const queued = new Set(orderedTasks.value.map(task => task.name))
   return activeTasks.value.filter(task => !queued.has(task.name))
 })
 const selectedTask = computed(
@@ -302,6 +371,17 @@ const presetSelectOptions = computed(() =>
 )
 const availableTaskOptions = computed(() =>
   availableTasks.value.map(item => ({ label: getDisplayName(item), value: item.name }))
+)
+const mxuInstanceOptions = computed(() =>
+  (mxuPreview.value?.instances || []).map(instance => ({
+    label: `${instance.name}（${instance.enabled_task_count}/${instance.task_count}）`,
+    value: instance.id,
+  }))
+)
+const selectedMxuInstance = computed(() =>
+  mxuPreview.value?.instances.find(
+    instance => instance.id === mxuPreview.value?.selected_instance_id
+  )
 )
 
 watch(
@@ -327,7 +407,10 @@ watch(
 
 watch(
   () => props.projectPath,
-  () => void reloadInterface(false)
+  () => {
+    void reloadInterface(false)
+    void refreshMxuImportAvailability()
+  }
 )
 
 const parseSnapshot = (
@@ -351,7 +434,9 @@ const normalizeSnapshot = (
   const order = Array.isArray(parsed.taskOrder)
     ? parsed.taskOrder.filter(taskName => taskNames.size === 0 || taskNames.has(taskName))
     : []
-  const checked = Object.fromEntries(order.map(taskName => [taskName, true]))
+  const checked = Object.fromEntries(
+    order.map(taskName => [taskName, parsed.taskChecked?.[taskName] !== false])
+  )
   const queued = new Set(order)
   const options = Object.fromEntries(
     Object.entries(parsed.taskOptions || {}).filter(([taskName]) => queued.has(taskName))
@@ -368,13 +453,49 @@ const emitModel = () => {
   })
 }
 
+const refreshMxuImportAvailability = async () => {
+  mxuImportAvailable.value = await checkMxuImportAvailable()
+}
+
+const loadMxuPreview = async (instanceId?: string) => {
+  try {
+    mxuPreview.value = await previewMxuConfig(props.projectPath, instanceId)
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'MXU 配置解析失败')
+  }
+}
+
+const openMxuImport = async () => {
+  mxuPreview.value = null
+  await loadMxuPreview()
+  if (mxuPreview.value) mxuModalOpen.value = true
+}
+
+const selectMxuInstance = async (instanceId: string) => {
+  await loadMxuPreview(instanceId)
+}
+
+const applyMxuImport = () => {
+  if (!mxuPreview.value) return
+  controllerName.value = mxuPreview.value.controller
+  resourceName.value = mxuPreview.value.resource
+  selectedPreset.value = ''
+  taskSnapshot.value = normalizeSnapshot(mxuPreview.value.snapshot, previewData.value)
+  selectedTaskName.value = orderedTasks.value[0]?.name || ''
+  emitModel()
+  mxuModalOpen.value = false
+  message.success('已导入 MXU 配置，请保存当前用户配置')
+}
+
 const pruneTasksForContext = () => {
   const nextOrder = taskSnapshot.value.taskOrder.filter(taskName =>
     activeTaskNames.value.has(taskName)
   )
   if (nextOrder.length === taskSnapshot.value.taskOrder.length) return
   taskSnapshot.value.taskOrder = nextOrder
-  taskSnapshot.value.taskChecked = Object.fromEntries(nextOrder.map(taskName => [taskName, true]))
+  taskSnapshot.value.taskChecked = Object.fromEntries(
+    nextOrder.map(taskName => [taskName, taskSnapshot.value.taskChecked[taskName] !== false])
+  )
   taskSnapshot.value.taskOptions = Object.fromEntries(
     Object.entries(taskSnapshot.value.taskOptions).filter(([taskName]) =>
       nextOrder.includes(taskName)
@@ -429,10 +550,10 @@ const handlePresetChange = (value?: string) => {
 }
 
 const addTask = (taskName: string) => {
-  if (!activeTaskNames.value.has(taskName) || taskSnapshot.value.taskOrder.includes(taskName)) {
-    return
+  if (!activeTaskNames.value.has(taskName)) return
+  if (!taskSnapshot.value.taskOrder.includes(taskName)) {
+    taskSnapshot.value.taskOrder.push(taskName)
   }
-  taskSnapshot.value.taskOrder.push(taskName)
   taskSnapshot.value.taskChecked[taskName] = true
   taskSnapshot.value.taskOptions[taskName] ||= {}
   selectedTaskName.value = taskName
@@ -440,9 +561,7 @@ const addTask = (taskName: string) => {
 }
 
 const removeTask = (taskName: string) => {
-  taskSnapshot.value.taskOrder = taskSnapshot.value.taskOrder.filter(item => item !== taskName)
-  delete taskSnapshot.value.taskChecked[taskName]
-  delete taskSnapshot.value.taskOptions[taskName]
+  taskSnapshot.value.taskChecked[taskName] = false
   clearPreset()
 }
 
@@ -495,7 +614,10 @@ const filterSelectOption: SelectProps['filterOption'] = (input, option) =>
     .toLowerCase()
     .includes(input.toLowerCase())
 
-onMounted(() => void reloadInterface(false))
+onMounted(() => {
+  void reloadInterface(false)
+  void refreshMxuImportAvailability()
+})
 </script>
 
 <style scoped>
@@ -634,6 +756,10 @@ onMounted(() => void reloadInterface(false))
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.import-warning {
+  margin-top: 16px;
 }
 
 @media (max-width: 991px) {

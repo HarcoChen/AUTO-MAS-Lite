@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -18,8 +17,6 @@ from automas_maafw_interface.loader import MaaFWInterfaceLoadError
 from automas_maafw_interface.service import MaaFWInterfaceService
 from automas_maafw_project_update.service import MaaFWProjectUpdateService
 from automas_script_maafw.runner_task import MaaFWPluginAutoProxyTask
-
-from .script_config import MaaEndScriptConfigTask
 
 logger = get_logger("MaaEnd 插件适配")
 
@@ -74,20 +71,17 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
         if not project_path.exists():
             return "请设置 MaaEnd MaaFW 项目目录"
 
-        if runtime.mode == "AutoProxy":
-            try:
-                interface = MaaFWInterfaceService().load(project_path)
-            except Exception as exc:
-                return f"无法读取 MaaEnd MaaFW interface，请检查项目路径: {exc}"
+        try:
+            interface = MaaFWInterfaceService().load(project_path)
+        except Exception as exc:
+            return f"无法读取 MaaEnd MaaFW interface，请检查项目路径: {exc}"
 
-            if not getattr(interface, "controller", None):
-                return "MaaEnd MaaFW interface 未声明 controller，请检查项目目录"
-            if not getattr(interface, "resource", None):
-                return "MaaEnd MaaFW interface 未声明 resource，请检查项目目录"
-            if not getattr(interface, "task", None):
-                return "MaaEnd MaaFW interface 未声明 task，请检查项目目录"
-        elif not (project_path / "MaaEnd.exe").is_file():
-            return "请设置包含 MaaEnd.exe 的 MaaEnd 项目目录"
+        if not getattr(interface, "controller", None):
+            return "MaaEnd MaaFW interface 未声明 controller，请检查项目目录"
+        if not getattr(interface, "resource", None):
+            return "MaaEnd MaaFW interface 未声明 resource，请检查项目目录"
+        if not getattr(interface, "task", None):
+            return "MaaEnd MaaFW interface 未声明 task，请检查项目目录"
 
         if _controller_type(script_config) == "Adb":
             emulator_id = _cfg_get(script_config, "Emulator", "Id", "-")
@@ -104,33 +98,24 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
         runtime.user_config = await runtime.storage.load_user_collection()
 
         runtime.extra["project_update_logs"] = []
-        if runtime.mode == "AutoProxy":
-            await self._update_project_before_run(runtime)
-        else:
-            self._backup_maaend_config(runtime)
+        await self._update_project_before_run(runtime)
 
         emulator_id = _cfg_get(runtime.script_config, "Emulator", "Id", "-")
         if _controller_type(runtime.script_config) == "Adb" and emulator_id != "-":
             runtime.emulator_manager = await runtime.initialize_emulator_manager(emulator_id)
 
         user_config = runtime.user_config
-        if runtime.mode == "ScriptConfig":
-            user_id = runtime.task_info.user_id or "Default"
-            runtime.script_info.user_list = [
-                UserItem(user_id=user_id, name="", status="等待")
-            ]
-        else:
-            runtime.script_info.user_list = [
-                UserItem(
-                    user_id=str(user_id),
-                    name=_user_name(config, str(user_id)),
-                    status="等待",
-                )
-                for user_id, config in user_config.items()
-                if isinstance(config, ConfigBase)
-                and _user_enabled(config)
-                and _user_remaining_days(config) != 0
-            ]
+        runtime.script_info.user_list = [
+            UserItem(
+                user_id=str(user_id),
+                name=_user_name(config, str(user_id)),
+                status="等待",
+            )
+            for user_id, config in user_config.items()
+            if isinstance(config, ConfigBase)
+            and _user_enabled(config)
+            and _user_remaining_days(config) != 0
+        ]
         logger.info(
             f"MaaEnd 插件用户列表加载完成，已筛选用户数: {len(runtime.script_info.user_list)}"
         )
@@ -149,23 +134,8 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
             runtime.extra.get("project_update_logs", []),
         )
 
-    def run_script_config(self, runtime: ScriptAdapterRuntime) -> TaskExecuteBase:
-        if runtime.script_config is None:
-            raise RuntimeError("MaaEnd 插件脚本配置未准备完成")
-
-        return MaaEndScriptConfigTask(
-            runtime.script_info,
-            runtime.script_config,
-        )
-
     async def finalize(self, runtime: ScriptAdapterRuntime) -> None:
-        if runtime.mode == "ScriptConfig":
-            self._restore_maaend_config(runtime)
-            await runtime.storage.unlock()
-            runtime.script_info.status = "完成"
-            return
-        else:
-            await self._unlock_and_save_users(runtime)
+        await self._unlock_and_save_users(runtime)
 
         if runtime.check_result != "Pass":
             runtime.script_info.status = "异常"
@@ -200,14 +170,8 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
     async def on_crash(self, runtime: ScriptAdapterRuntime, error: Exception) -> None:
         runtime.script_info.status = "异常"
         logger.exception(f"MaaEnd 插件任务出现异常: {error}")
-        if runtime.mode == "ScriptConfig":
-            with suppress(Exception):
-                self._restore_maaend_config(runtime)
         with suppress(Exception):
-            if runtime.mode == "AutoProxy":
-                await self._unlock_and_save_users(runtime)
-            else:
-                await runtime.storage.unlock()
+            await self._unlock_and_save_users(runtime)
         with suppress(Exception):
             await Config.send_websocket_message(
                 id=runtime.task_info.task_id,
@@ -289,34 +253,6 @@ class MaaEndAdapterHooks(ScriptAdapterHooks):
         if isinstance(runtime.user_config, MultipleConfig):
             await runtime.storage.save_user_models(runtime.user_config)
             await Config.ScriptConfig.save()
-
-    def _backup_maaend_config(self, runtime: ScriptAdapterRuntime) -> None:
-        project_path = Path(_cfg_get(runtime.script_config, "Info", "Path", "")).resolve()
-        source = project_path / "config"
-        backup = Path.cwd() / "data" / str(runtime.script_uid) / "Temp"
-        shutil.rmtree(backup, ignore_errors=True)
-        runtime.extra["maaend_config_path"] = source
-        runtime.extra["maaend_config_backup"] = backup
-        runtime.extra["maaend_had_original_config"] = source.is_dir()
-        if source.is_dir():
-            shutil.copytree(source, backup)
-
-    def _restore_maaend_config(self, runtime: ScriptAdapterRuntime) -> None:
-        target = runtime.extra.get("maaend_config_path")
-        backup = runtime.extra.get("maaend_config_backup")
-        had_original = bool(runtime.extra.get("maaend_had_original_config"))
-        if not isinstance(target, Path) or not isinstance(backup, Path):
-            return
-
-        if had_original and backup.is_dir():
-            restore_tmp = target.with_name(f"{target.name}.automas-restore.tmp")
-            shutil.rmtree(restore_tmp, ignore_errors=True)
-            shutil.copytree(backup, restore_tmp)
-            shutil.rmtree(target, ignore_errors=True)
-            restore_tmp.rename(target)
-        else:
-            shutil.rmtree(target, ignore_errors=True)
-        shutil.rmtree(backup, ignore_errors=True)
 
 
 def _prepare_maafw_agent_python_envs(

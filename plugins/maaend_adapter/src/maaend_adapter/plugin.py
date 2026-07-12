@@ -23,6 +23,7 @@ class Plugin(ScriptAdapterPlugin):
         "maafw.project_update.v1",
         "maafw.agent_env.v1",
     ]
+    wants = ["mxu.import.v1"]
 
     def build_script_adapters(self) -> list[ScriptAdapterDefinition]:
         return [
@@ -34,7 +35,7 @@ class Plugin(ScriptAdapterPlugin):
                 script_class_name="MaaEndPluginConfig",
                 user_class_name="MaaEndPluginUserConfig",
                 hooks_factory=MaaEndAdapterHooks,
-                supported_modes=("AutoProxy", "ScriptConfig"),
+                supported_modes=("AutoProxy",),
                 icon="MaaEnd",
                 editor_kind="plugin:maaend_adapter",
                 legacy_config_class_name="MaaEndConfig",
