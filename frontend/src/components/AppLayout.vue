@@ -97,6 +97,7 @@ import {
   type PageDeclaration,
 } from '../router/pageDeclarations.ts'
 import type { MenuProps } from 'ant-design-vue'
+import { setPluginPages } from '@/plugin/pluginPageRegistry'
 
 const SIDER_WIDTH = 160
 
@@ -181,6 +182,7 @@ interface PluginSystemSnapshotMessage {
 const applyPageDeclarations = (rawPages: unknown) => {
   const pages = normalizePageDeclarations(rawPages)
   declaredPages.value = sortPageDeclarations(pages)
+  setPluginPages(declaredPages.value)
   syncDeclaredPageRoutes(router, declaredPages.value)
 }
 

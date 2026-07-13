@@ -67,10 +67,13 @@
   </a-card>
 
   <a-card v-if="isMaaEndAdapter && userId" class="config-card adapter-config-card">
-    <MaaEndTaskEditor
+    <PluginCustomElement
       v-model="maaEndTaskEditorModel"
-      :project-path="String(scriptConfig?.Info?.Path || '')"
-      :controller-type="scriptConfig?.Game?.ControllerType === 'Adb' ? 'Adb' : 'Win32'"
+      page-id="maaend-adapter-task-editor"
+      :properties="{
+        projectPath: String(scriptConfig?.Info?.Path || ''),
+        controllerType: scriptConfig?.Game?.ControllerType === 'Adb' ? 'Adb' : 'Win32',
+      }"
     />
   </a-card>
 
@@ -89,9 +92,9 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import HeaderSchemaActionButton from '@/components/HeaderSchemaActionButton.vue'
+import PluginCustomElement from '@/components/PluginCustomElement.vue'
 import SchemaForm from '@/components/SchemaForm.vue'
 import SchemaActionSessionMask from '@/components/SchemaActionSessionMask.vue'
-import MaaEndTaskEditor from '@/views/MaaEndUserEdit/MaaEndTaskEditor.vue'
 import OkScriptConfigEditor from '@/views/OkScriptUserEdit/OkScriptConfigEditor.vue'
 import { useSchemaActionRunner } from '@/composables/useSchemaActionRunner'
 import { useWebSocket, type WebSocketBaseMessage } from '@/composables/useWebSocket'

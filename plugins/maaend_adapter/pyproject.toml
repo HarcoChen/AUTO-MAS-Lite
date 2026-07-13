@@ -18,3 +18,10 @@ maaend_adapter = "maaend_adapter.plugin:Plugin"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+maaend_adapter = [
+    "frontend/manifest.json",
+    "frontend/dist/*.js",
+    "frontend/dist/*.css",
+]

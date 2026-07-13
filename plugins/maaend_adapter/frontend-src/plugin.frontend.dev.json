@@ -1,0 +1,7 @@
+{
+  "version": 0,
+  "renderer": "custom-element",
+  "entry": "src/main.ts",
+  "elements": [{ "tag": "maaend-task-editor" }],
+  "command": "npm --prefix plugins/maaend_adapter/frontend-src run build"
+}

@@ -24,6 +24,21 @@ class Plugin(ScriptAdapterPlugin):
         "maafw.agent_env.v1",
     ]
     wants = ["mxu.import.v1"]
+    pages = [
+        {
+            "id": "maaend-adapter-task-editor",
+            "path": "/plugins/maaend-adapter/task-editor",
+            "title": "MaaEnd 任务编辑器",
+            "menu_label": "MaaEnd 任务编辑器",
+            "icon": "app",
+            "component": "PluginPage",
+            "renderer": "custom-element",
+            "element_tag": "maaend-task-editor",
+            "section": "main",
+            "order": 1000,
+            "visible": False,
+        }
+    ]
 
     def build_script_adapters(self) -> list[ScriptAdapterDefinition]:
         return [
