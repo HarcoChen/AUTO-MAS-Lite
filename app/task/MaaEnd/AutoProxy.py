@@ -27,6 +27,7 @@ import shutil
 import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
+from maa.toolkit import Toolkit
 
 from app.core import Config
 from app.models.task import TaskExecuteBase, ScriptItem, LogRecord
@@ -542,9 +543,29 @@ class AutoProxyTask(TaskExecuteBase):
         if device_info is not None:
             from app.core import MaaFWManager
 
+            adb_device = await MaaFWManager.convert_adb(device_info)
+            logger.warning(
+                "MaaEnd 设备探针: "
+                f"device_info.title={device_info.title}, "
+                f"device_info.adb_address={device_info.adb_address}, "
+                f"convert.name={adb_device.name}, "
+                f"convert.address={adb_device.address}"
+            )
+            for index, scanned_device in enumerate(Toolkit.find_adb_devices()):
+                logger.warning(
+                    "MaaEnd 扫描设备探针: "
+                    f"index={index}, name={scanned_device.name}, "
+                    f"address={scanned_device.address}, "
+                    f"adb_path={scanned_device.adb_path}"
+                )
             maaend_instance["savedDevice"] = {
-                "adbDeviceName": (await MaaFWManager.convert_adb(device_info)).name
+                "adbDeviceName": adb_device.name
             }
+            logger.warning(
+                "MaaEnd 写入设备探针: "
+                f"instance={self.maaend_instance_name}, "
+                f"adbDeviceName={maaend_instance['savedDevice']['adbDeviceName']}"
+            )
         maaend_tasks = maaend_instance["tasks"]
 
         account_id = str(self.cur_user_config.get("Info", "Id")).strip()
