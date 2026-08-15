@@ -588,7 +588,7 @@ class AutoProxyTask(TaskExecuteBase):
 
         maaend_i18n: dict[str, str] = {}
         for task_definition_file in self.maaend_root_path.glob("tasks/*.json"):
-            task_definition = read_file(task_definition_file)["task"][0]
+            task_definition = json5.loads(task_definition_file.read_text(encoding="utf-8"))["task"][0]
             if task_definition["label"].startswith("$"):
                 locale_text = maaend_i18n_raw.get(task_definition["label"].lstrip("$"))
                 if locale_text is None:
