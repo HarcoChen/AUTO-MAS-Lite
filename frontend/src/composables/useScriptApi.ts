@@ -769,6 +769,10 @@ export function useScriptApi() {
                           maaEndUserData.Task?.IfResourceRecycleStation != null
                             ? maaEndUserData.Task.IfResourceRecycleStation
                             : true,
+                        IfPullCountCalculator:
+                          maaEndUserData.Task?.IfPullCountCalculator != null
+                            ? maaEndUserData.Task.IfPullCountCalculator
+                            : false,
                       },
                       Notify: {
                         Enabled:

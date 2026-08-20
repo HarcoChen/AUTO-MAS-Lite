@@ -196,6 +196,7 @@ const getDefaultMaaEndUserData = () => ({
     IfTrialOfSwordmancy: true,
     IfDailyRewards: true,
     IfResourceRecycleStation: true,
+    IfPullCountCalculator: false,
   },
   Notify: {
     Enabled: false,

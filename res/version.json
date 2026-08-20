@@ -1,6 +1,11 @@
 {
-    "version": "v5.4.0-beta.8",
+    "version": "v5.4.0-beta.9",
     "version_info": {
+        "v5.4.0-beta.9": {
+            "修复BUG": [
+                "MaaEnd专项 修复抽数计算开关在用户配置回显时丢失"
+            ]
+        },
         "v5.4.0-beta.8":{
             "程序优化": [
                 "游戏签到 将 Token 失效、风控、社区接口及扫码网络失败日志降级为 WARNING，保留主程序异常的 ERROR 日志",
