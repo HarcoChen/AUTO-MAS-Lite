@@ -35,6 +35,8 @@ from app.utils.constants import (
     MATERIALS_MAP,
     RESOURCE_STAGE_INFO,
     MAA_STAGE_KEY,
+    MAAEND_DELIVERY_TASK,
+    MAAEND_DELIVERY_COMMISSION_SOURCES,
     MAAEND_PROTOCOL_SPACE_TASK_OPTIONS,
     MAAEND_SANITY_TASK_DEFAULTS,
     MAAEND_SANITY_TASK_DETAIL_LABELS,
@@ -122,6 +124,24 @@ def init_maaend_task_config(config) -> None:
         "AutoEssenceSpecifiedLocation",
         MAAEND_SANITY_TASK_DEFAULTS["AutoEssenceSpecifiedLocation"],
         StringValidator(),
+    )
+
+    ## 抢委托送货最低接取价格（万）
+    config.Task_SeizeDeliveryJobsReward = ConfigItem(
+        "Task", "SeizeDeliveryJobsReward", 15.9, RangeValidator(0, 9999)
+    )
+    ## 抢委托送货委托接收点
+    config.Task_SeizeDeliveryJobsCommissionSource = ConfigItem(
+        "Task",
+        "SeizeDeliveryJobsCommissionSource",
+        "Unlimited",
+        OptionsValidator(list(MAAEND_DELIVERY_COMMISSION_SOURCES)),
+    )
+    ## 独立送货任务
+    setattr(
+        config,
+        f"Task_If{MAAEND_DELIVERY_TASK}",
+        ConfigItem("Task", f"If{MAAEND_DELIVERY_TASK}", True, BoolValidator()),
     )
 
     for task_name in MAAEND_TASKS:
@@ -629,7 +649,6 @@ class MaaUserConfig(ConfigBase):
             return "-1"
 
         for i, plan in enumerate(infrast_data.get("plans", [])):
-
             for t in plan.get("period", []):
                 if (
                     datetime.strptime(t[0], "%H:%M").time()
@@ -998,10 +1017,7 @@ class MaaEndUserConfig(ConfigBase):
         mode = self.get("Info", "SanityMode")
         if mode == "Fixed":
             return normalize_maaend_plan_key(
-                {
-                    field: self.get("Task", field)
-                    for field in MAAEND_SANITY_TASK_FIELDS
-                }
+                {field: self.get("Task", field) for field in MAAEND_SANITY_TASK_FIELDS}
             ), mode
 
         try:
@@ -2262,7 +2278,6 @@ class MaaPlanConfig(ConfigBase):
             return self.config_item_dict["ALL"][name]
 
         elif self.get("Info", "Mode") == "Weekly":
-
             today = datetime.now(tz=UTC4).strftime("%A")
 
             if today in self.config_item_dict:
@@ -2323,9 +2338,7 @@ class MaaEndPlanConfig(WeeklyKeyPlanConfig):
         for group in ["ALL", *calendar.day_name]:
             group_data = normalized_data.get(group)
             if isinstance(group_data, dict):
-                normalized_data[group] = {
-                    "Key": normalize_maaend_plan_key(group_data)
-                }
+                normalized_data[group] = {"Key": normalize_maaend_plan_key(group_data)}
         return await super().load(normalized_data)
 
 
@@ -2505,9 +2518,7 @@ class OkwwUserConfig(ConfigBase):
         self.Info_RemainedDay = ConfigItem(
             "Info", "RemainedDay", -1, RangeValidator(-1, 9999)
         )
-        self.Info_Mode = ConfigItem(
-            "Info", "Mode", "脚本", OkwwConfigModeValidator()
-        )
+        self.Info_Mode = ConfigItem("Info", "Mode", "脚本", OkwwConfigModeValidator())
         # 是否启用 MAS 快速配置覆盖高频任务字段
         self.Info_IfQuickConfig = ConfigItem(
             "Info", "IfQuickConfig", True, BoolValidator()
@@ -3506,7 +3517,6 @@ class GlobalConfig(ConfigBase):
                             )
 
                             if "SSReopen" not in stage["Display"]:
-
                                 if stage["Drop"] in MATERIALS_MAP:
                                     drop_id = stage["Drop"]
                                 elif "玉" in stage["Drop"]:

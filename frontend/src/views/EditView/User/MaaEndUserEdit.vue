@@ -55,6 +55,12 @@
             @import-config="handleImportMaaEndConfig"
             @script-config="handleScriptConfig"
           />
+          <DeliveryConfigSection
+            v-if="formData.Info.IfQuickConfig"
+            :form-data="formData"
+            :loading="loading"
+            @save="handleFieldSave"
+          />
           <TaskConfigSection
             v-if="formData.Info.IfQuickConfig"
             :form-data="formData"
@@ -108,6 +114,7 @@ import { TaskCreateIn } from '@/api/models/TaskCreateIn'
 
 import MaaEndUserEditHeader from '@/views/MaaEndUserEdit/MaaEndUserEditHeader.vue'
 import BasicInfoSection from '@/views/MaaEndUserEdit/BasicInfoSection.vue'
+import DeliveryConfigSection from '@/views/MaaEndUserEdit/DeliveryConfigSection.vue'
 import TaskConfigSection from '@/views/MaaEndUserEdit/TaskConfigSection.vue'
 import SkylandConfigSection from '@/views/MaaEndUserEdit/SkylandConfigSection.vue'
 import NotifyConfigSection from '@/views/MaaEndUserEdit/NotifyConfigSection.vue'
@@ -179,6 +186,8 @@ const getDefaultMaaEndUserData = () => ({
     CrisisDrills: 'AdvancedProgression1',
     RewardsSetOption: 'RewardsSetA',
     AutoEssenceSpecifiedLocation: '',
+    SeizeDeliveryJobsReward: 15.9,
+    SeizeDeliveryJobsCommissionSource: 'Unlimited',
     IfSanity: true,
     IfAutoUseSpMedication: true,
     IfDijiangRewards: true,
@@ -188,7 +197,7 @@ const getDefaultMaaEndUserData = () => ({
     IfAutoStockStaple: true,
     IfVisitFriends: true,
     IfCreditShoppingN2: true,
-    IfSeizeEntrustTask: true,
+    IfSeizeDeliveryJobs: true,
     IfAutoEcoFarm: true,
     IfAutoSell: true,
     IfEnvironmentMonitoring: true,
@@ -196,6 +205,7 @@ const getDefaultMaaEndUserData = () => ({
     IfTrialOfSwordmancy: true,
     IfDailyRewards: true,
     IfResourceRecycleStation: true,
+    IfPullCountCalculator: false,
   },
   Notify: {
     Enabled: false,
