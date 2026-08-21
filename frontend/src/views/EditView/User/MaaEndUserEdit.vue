@@ -54,6 +54,7 @@
             @configure="handleMaaEndConfig"
             @import-config="handleImportMaaEndConfig"
             @script-config="handleScriptConfig"
+            @mode-change="handleConfigModeChange"
           />
           <DeliveryConfigSection
             v-if="formData.Info.IfQuickConfig"
@@ -165,7 +166,7 @@ const getDefaultMaaEndUserData = () => ({
     Status: true,
     Id: '',
     Password: '',
-    Mode: '简洁',
+    Mode: '脚本',
     IfQuickConfig: true,
     SanityMode: 'Fixed',
     Resource: '官服',
@@ -287,6 +288,12 @@ const handleFieldSave = async (key: string, value: any) => {
   await saveUserFields([{ key, value }])
 }
 
+const handleConfigModeChange = async (value: boolean | string) => {
+  if (typeof value !== 'string' || !['脚本', '用户', '直控'].includes(value)) return
+  formData.Info.Mode = value
+  await handleFieldSave('Info.Mode', value)
+}
+
 const handleFieldsSave = async (changes: FieldChange[]) => {
   await saveUserFields(changes)
 }
@@ -370,13 +377,6 @@ const normalizeQuickConfig = async () => {
   if (!userId) return
 
   const infoPayload: Record<string, unknown> = {}
-  if (formData.Info.Mode === '自定义') {
-    formData.Info.Mode = '详细'
-    formData.Info.IfQuickConfig = false
-    infoPayload.Mode = formData.Info.Mode
-    infoPayload.IfQuickConfig = formData.Info.IfQuickConfig
-  }
-
   if (!presetSupported.value && formData.Info.IfQuickConfig) {
     formData.Info.IfQuickConfig = false
     infoPayload.IfQuickConfig = false
@@ -437,9 +437,8 @@ const handleMaaEndConfig = async () => {
     maaEndConfigLoading.value = true
     cleanupConfigSession()
 
-    const configTaskTargetId = formData.Info.Mode === '简洁' ? scriptId : userId
     const response = await Service.addTaskApiDispatchStartPost({
-      taskId: configTaskTargetId,
+      taskId: userId,
       mode: TaskCreateIn.mode.SCRIPT_CONFIG,
     })
 
@@ -467,7 +466,13 @@ const handleMaaEndConfig = async () => {
     maaEndSubscriptionId.value = subscriptionId
     maaEndWebsocketId.value = response.taskId
     showMaaEndConfigMask.value = true
-    message.success(`已启动 ${formData.Info.Mode === '简洁' ? '脚本' : '用户'} MaaEnd 配置`)
+    const configTarget =
+      formData.Info.Mode === '直控'
+        ? '脚本直控'
+        : formData.Info.Mode === '用户'
+          ? '用户独立'
+          : '脚本共享'
+    message.success(`已启动${configTarget} MaaEnd 配置`)
 
     maaEndConfigTimeout = window.setTimeout(
       () => {
@@ -486,14 +491,17 @@ const handleMaaEndConfig = async () => {
 const handleImportMaaEndConfig = async () => {
   try {
     maaEndImportLoading.value = true
+    if (formData.Info.Mode === '直控') {
+      throw new Error('脚本直控直接使用 MaaEnd 原有配置，无需导入')
+    }
     const response = await importScriptConfigFile(
       scriptId,
-      formData.Info.Mode === '简洁' ? null : userId
+      formData.Info.Mode === '脚本' ? null : userId
     )
     if (response.code !== 200) {
       throw new Error(response.message || '导入脚本配置文件失败')
     }
-    message.success(`已导入${formData.Info.Mode === '简洁' ? '脚本' : '用户'}配置文件`)
+    message.success(`已导入${formData.Info.Mode === '脚本' ? '脚本共享' : '用户独立'}配置文件`)
   } catch (error) {
     message.error(error instanceof Error ? error.message : '导入脚本配置文件失败')
   } finally {

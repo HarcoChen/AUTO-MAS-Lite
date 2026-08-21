@@ -646,7 +646,7 @@ export function useScriptApi() {
                         Mode:
                           maaEndUserData.Info?.Mode !== undefined
                             ? maaEndUserData.Info.Mode
-                            : '简洁',
+                            : '脚本',
                         SanityMode:
                           maaEndUserData.Info?.SanityMode !== undefined
                             ? maaEndUserData.Info.SanityMode

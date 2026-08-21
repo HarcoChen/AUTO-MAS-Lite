@@ -20,7 +20,6 @@
 
 
 import asyncio
-import json
 import shutil
 import tempfile
 import uuid
@@ -36,7 +35,11 @@ from app.services import System
 from app.utils import decode_bytes, get_logger, ProcessManager, is_process_running
 from app.utils.constants import UTC4
 from app.utils.io import read_file, write_file
-from .ScriptConfig import normalize_maaend_config
+from .ScriptConfig import (
+    maaend_config_mode,
+    maaend_mas_config_dir,
+    normalize_maaend_config,
+)
 from .resource_loader import load_maaend_task_i18n
 from .tools import login, replace_account_switch_task
 
@@ -66,14 +69,15 @@ class ManualReviewTask(TaskExecuteBase):
         self.cur_user_item = self.script_info.user_list[self.script_info.current_index]
         self.cur_user_uid = uuid.UUID(self.cur_user_item.user_id)
         self.cur_user_config = self.user_config[self.cur_user_uid]
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
+        self.config_mode = maaend_config_mode(self.cur_user_config.get("Info", "Mode"))
         self.maaend_config_path = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile"
+            Path(self.script_config.get("Info", "Path")) / "config"
+            if self.config_mode == "直控"
+            else maaend_mas_config_dir(
+                self.script_info.script_id,
+                str(self.cur_user_uid),
+                self.config_mode,
+            )
         )
         self.check_result = "-"
 
@@ -135,7 +139,6 @@ class ManualReviewTask(TaskExecuteBase):
         self.cur_user_item.status = "运行"
 
         while True:
-
             try:
                 self.script_info.log = "正在启动游戏..."
                 if self.emulator_manager is None:
@@ -154,9 +157,7 @@ class ManualReviewTask(TaskExecuteBase):
                                 " "
                             ),
                         )
-                        await asyncio.sleep(
-                            self.script_config.get("Game", "WaitTime")
-                        )
+                        await asyncio.sleep(self.script_config.get("Game", "WaitTime"))
                     emulator_info = None
                 else:
                     logger.info(
@@ -167,8 +168,9 @@ class ManualReviewTask(TaskExecuteBase):
                         "com.hypergryph.endfield",
                     )
             except Exception as e:
-
-                logger.opt(exception=True).warning(f"用户 {self.cur_user_item.user_id} 游戏启动失败: {e}")
+                logger.opt(exception=True).warning(
+                    f"用户 {self.cur_user_item.user_id} 游戏启动失败: {e}"
+                )
                 self.script_info.log = (
                     f"正在启动模拟器\n模拟器启动失败: {e}\n正在中止相关程序"
                 )
@@ -233,7 +235,6 @@ class ManualReviewTask(TaskExecuteBase):
                     break
 
         if self.run_book["SignIn"]:
-
             try:
                 if self.emulator_manager is not None:
                     await self.emulator_manager.setVisible(
@@ -270,8 +271,13 @@ class ManualReviewTask(TaskExecuteBase):
                 shutil.copytree(self.maaend_set_path, backup_config_path)
 
             try:
+                source_config_path = (
+                    backup_config_path
+                    if self.config_mode == "直控"
+                    else self.maaend_config_path
+                )
                 shutil.rmtree(self.maaend_set_path, ignore_errors=True)
-                shutil.copytree(self.maaend_config_path, self.maaend_set_path)
+                shutil.copytree(source_config_path, self.maaend_set_path)
                 config_path = self.maaend_set_path / "mxu-MaaEnd.json"
                 maaend_set = read_file(config_path)
 

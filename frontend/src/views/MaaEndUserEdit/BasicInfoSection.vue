@@ -91,38 +91,19 @@
     </a-row>
 
     <a-row :gutter="24">
+      <a-col :span="24">
+        <GeneralConfigModeSelector
+          :model-value="formData.Info.Mode"
+          :options="maaEndConfigModeOptions"
+          :disabled="loading"
+          alert-message="脚本使用脚本级共享配置，用户使用当前用户独立配置；直控直接使用 MaaEnd 原有配置。接管具体任务配置是独立覆盖层。"
+          @change="$emit('modeChange', $event)"
+        />
+      </a-col>
       <a-col :span="12">
-        <a-form-item>
-          <template #label>
-            <span class="form-label">
-              配置文件来源
-              <a-tooltip title="脚本使用全局配置文件，用户使用当前用户的配置文件">
-                <QuestionCircleOutlined class="help-icon" />
-              </a-tooltip>
-            </span>
-          </template>
+        <a-form-item label="配置文件">
           <div class="config-source-control">
-            <a-select
-              v-model:value="formData.Info.Mode"
-              size="large"
-              :options="modeOptions"
-              :disabled="loading"
-              @change="emitSave('Info.Mode', formData.Info.Mode)"
-            />
             <a-button
-              v-if="formData.Info.Mode === '简洁'"
-              type="default"
-              size="large"
-              :disabled="loading || showConfigMask"
-              @click="$emit('scriptConfig')"
-            >
-              <template #icon>
-                <EditOutlined />
-              </template>
-              编辑脚本设定
-            </a-button>
-            <a-button
-              v-else
               type="primary"
               ghost
               size="large"
@@ -133,10 +114,10 @@
               <template #icon>
                 <SettingOutlined />
               </template>
-              {{ showConfigMask ? '正在配置' : '配置' }}
+              {{ showConfigMask ? '正在配置' : `配置${currentConfigModeLabel}` }}
             </a-button>
             <a-button
-              v-if="formData.Info.Mode !== '简洁'"
+              v-if="formData.Info.Mode !== '直控'"
               type="default"
               size="large"
               :loading="importLoading"
@@ -146,7 +127,18 @@
               <template #icon>
                 <ImportOutlined />
               </template>
-              导入
+              导入当前 MaaEnd 配置
+            </a-button>
+            <a-button
+              type="default"
+              size="large"
+              :disabled="loading || showConfigMask"
+              @click="$emit('scriptConfig')"
+            >
+              <template #icon>
+                <EditOutlined />
+              </template>
+              编辑脚本设定
             </a-button>
           </div>
         </a-form-item>
@@ -246,14 +238,17 @@ import {
   QuestionCircleOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue'
+import { computed } from 'vue'
+import GeneralConfigModeSelector from '@/views/EditView/User/GeneralConfigModeSelector.vue'
 const emit = defineEmits<{
   save: [key: string, value: any]
   configure: []
   importConfig: []
   scriptConfig: []
+  modeChange: [value: boolean | string]
 }>()
 
-defineProps<{
+const props = defineProps<{
   formData: any
   loading: boolean
   resourceOptions: Array<{ label: string; value: string }>
@@ -263,9 +258,30 @@ defineProps<{
   showConfigMask?: boolean
 }>()
 
-const modeOptions = [
-  { label: '脚本', value: '简洁' },
-  { label: '用户', value: '详细' },
+const maaEndConfigModeOptions: Array<{
+  value: '脚本' | '用户' | '直控'
+  title: string
+  description: string
+  icon: 'file' | 'database' | 'setting'
+}> = [
+  {
+    value: '脚本',
+    title: '脚本',
+    description: '使用脚本级共享配置，所有用户共用。',
+    icon: 'file',
+  },
+  {
+    value: '用户',
+    title: '用户',
+    description: '使用当前用户独立配置，与脚本配置隔离。',
+    icon: 'database',
+  },
+  {
+    value: '直控',
+    title: '直控',
+    description: '直接使用 MaaEnd 原有配置，由 MaaEnd GUI 维护。',
+    icon: 'setting',
+  },
 ]
 
 const quickConfigOptions = [
@@ -276,6 +292,12 @@ const quickConfigOptions = [
 const emitSave = (key: string, value: any) => {
   emit('save', key, value)
 }
+
+const currentConfigModeLabel = computed(() => {
+  if (props.formData.Info.Mode === '直控') return '脚本直控'
+  if (props.formData.Info.Mode === '用户') return '用户独立'
+  return '脚本共享'
+})
 </script>
 
 <style scoped>
@@ -285,11 +307,8 @@ const emitSave = (key: string, value: any) => {
 
 .config-source-control {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-}
-
-.config-source-control :deep(.ant-select) {
-  flex: 1;
 }
 
 .section-header {

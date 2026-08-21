@@ -43,6 +43,7 @@ from app.utils.constants import (
     MAAEND_TASKS,
 )
 from .tools import login, push_notification, replace_account_switch_task
+from .ScriptConfig import maaend_config_mode, maaend_mas_config_dir
 from .resource_loader import (
     load_maaend_interface_i18n,
     load_maaend_task_i18n,
@@ -130,15 +131,20 @@ class AutoProxyTask(TaskExecuteBase):
                     "请检查账号ID或改用 MAS 自建账号切换"
                 )
 
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
-        config_file = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile/mxu-MaaEnd.json"
-        )
+        config_mode = maaend_config_mode(self.cur_user_config.get("Info", "Mode"))
+        if config_mode == "直控":
+            config_file = (
+                Path.cwd() / f"data/{self.script_info.script_id}/Temp/mxu-MaaEnd.json"
+            )
+        else:
+            config_file = (
+                maaend_mas_config_dir(
+                    self.script_info.script_id,
+                    str(self.cur_user_uid),
+                    config_mode,
+                )
+                / "mxu-MaaEnd.json"
+            )
         self.maaend_config_file = config_file
         if not config_file.exists():
             self.cur_user_item.status = "异常"
@@ -572,14 +578,15 @@ class AutoProxyTask(TaskExecuteBase):
         if (self.maaend_set_path / "mxu-MaaEnd.json").exists():
             maaend_local_config = read_file(self.maaend_set_path / "mxu-MaaEnd.json")
 
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
+        config_mode = maaend_config_mode(self.cur_user_config.get("Info", "Mode"))
         maaend_config_path = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile"
+            Path.cwd() / f"data/{self.script_info.script_id}/Temp"
+            if config_mode == "直控"
+            else maaend_mas_config_dir(
+                self.script_info.script_id,
+                str(self.cur_user_uid),
+                config_mode,
+            )
         )
         maaend_config_file = maaend_config_path / "mxu-MaaEnd.json"
         if not maaend_config_file.exists():
@@ -766,10 +773,7 @@ class AutoProxyTask(TaskExecuteBase):
             if not task.get("enabled", False):
                 continue
 
-            if (
-                if_quick_config
-                and task_name_value == MAAEND_DELIVERY_TASK
-            ):
+            if if_quick_config and task_name_value == MAAEND_DELIVERY_TASK:
                 task.setdefault("optionValues", {})
                 task["optionValues"]["SeizeDeliveryJobsReward"] = {
                     "type": "input",

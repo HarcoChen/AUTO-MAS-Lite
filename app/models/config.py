@@ -859,6 +859,18 @@ class MaaConfig(ConfigBase):
         super().__init__()
 
 
+class MaaEndConfigModeValidator(OptionsValidator):
+    """兼容旧版来源名称，统一为脚本/用户/直控。"""
+
+    LEGACY_MODE_MAP = {"简洁": "脚本", "详细": "用户", "自定义": "用户"}
+
+    def __init__(self) -> None:
+        super().__init__(["脚本", "用户", "直控"])
+
+    def correct(self, value: Any) -> Any:
+        return self.LEGACY_MODE_MAP.get(value, super().correct(value))
+
+
 class MaaEndUserConfig(ConfigBase):
     """MaaEnd用户配置"""
 
@@ -877,9 +889,7 @@ class MaaEndUserConfig(ConfigBase):
         ## 密码
         self.Info_Password = ConfigItem("Info", "Password", "", EncryptValidator())
         ## 配置文件来源
-        self.Info_Mode = ConfigItem(
-            "Info", "Mode", "简洁", OptionsValidator(["简洁", "详细"])
-        )
+        self.Info_Mode = ConfigItem("Info", "Mode", "脚本", MaaEndConfigModeValidator())
         ## 是否启用快速配置
         self.Info_IfQuickConfig = ConfigItem(
             "Info", "IfQuickConfig", True, BoolValidator()
@@ -978,21 +988,6 @@ class MaaEndUserConfig(ConfigBase):
         super().__init__()
 
     async def load(self, data: dict):
-        info_data = data.get("Info")
-        # 兼容旧版 MaaEnd 用户配置:
-        # 旧“自定义”仍等价于用户配置文件且关闭快速配置。
-        # 没有 SanityMode 的旧“简洁/详细”回落为脚本配置来源，快速配置使用默认值。
-        if isinstance(info_data, dict):
-            if info_data.get("Mode") == "自定义":
-                info_data["Mode"] = "详细"
-                info_data["IfQuickConfig"] = False
-            elif (
-                info_data.get("Mode") in ("简洁", "详细")
-                and "SanityMode" not in info_data
-            ):
-                info_data["Mode"] = "简洁"
-                info_data.pop("IfQuickConfig", None)
-
         task_data = data.get("Task")
         if isinstance(task_data, dict):
             _normalize_maaend_sanity_task_type(task_data)
