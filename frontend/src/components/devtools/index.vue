@@ -37,12 +37,14 @@ import EnvironmentPage from './EnvironmentPage.vue'
 import QuickNavPage from './QuickNavPage.vue'
 import MessageTestPage from './MessageTestPage.vue'
 import BackendLaunchPage from './BackendLaunchPage.vue'
+import MaaEndUpdaterPage from './MaaEndUpdaterPage.vue'
 
 // 调试页面配置
 const tabs = [
   { key: 'route', title: '路由', icon: '🛣️', component: RouteInfoPage },
   { key: 'env', title: '环境', icon: '⚙️', component: EnvironmentPage },
   { key: 'backend', title: '后端', icon: '🚀', component: BackendLaunchPage },
+  { key: 'maaend-updater', title: 'MaaEnd更新', icon: '⬆️', component: MaaEndUpdaterPage },
   { key: 'nav', title: '导航', icon: '🧭', component: QuickNavPage },
   { key: 'message', title: '消息', icon: '💬', component: MessageTestPage },
 ]

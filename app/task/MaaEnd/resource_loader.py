@@ -322,6 +322,81 @@ class MaaEndResourceLoader:
     def get_options(self) -> dict[str, Any]:
         return deepcopy(self._options)
 
+    def get_project_update_spec(self) -> dict[str, Any]:
+        """读取并校验 MaaEnd 更新器所需的规范化元数据。
+
+        ``interface.json`` 可能包含 ProjectInterface 的其它字段以及 JSON5
+        注释；更新器只接收这里挑出的规范化 JSON，避免把原始 Interface
+        直接暴露给外部进程。
+        """
+
+        required_strings = ("version", "github", "mirrorchyan_rid")
+        for key in required_strings:
+            if not isinstance(self._interface.get(key), str) or not self._interface[
+                key
+            ].strip():
+                raise ValueError(f"MaaEnd interface 缺少有效更新字段: {key}")
+
+        update = self._interface.get("mas_update")
+        if not isinstance(update, dict):
+            raise ValueError("MaaEnd interface 缺少 mas_update 配置")
+        if update.get("schema_version") != 1:
+            raise ValueError("MaaEnd mas_update schema_version 不受支持")
+        if update.get("product") != "MaaEnd":
+            raise ValueError("MaaEnd mas_update product 必须为 MaaEnd")
+        if update.get("scope") != "application":
+            raise ValueError("MaaEnd mas_update scope 必须为 application")
+
+        artifact = update.get("artifact")
+        if not isinstance(artifact, dict):
+            raise ValueError("MaaEnd mas_update 缺少 artifact 配置")
+        if artifact.get("format") != "zip":
+            raise ValueError("当前 MaaEnd 更新器仅支持 ZIP 包")
+        if not isinstance(artifact.get("asset_pattern"), str) or not artifact[
+            "asset_pattern"
+        ].strip():
+            raise ValueError("MaaEnd artifact.asset_pattern 无效")
+
+        process = update.get("process")
+        if not isinstance(process, dict):
+            raise ValueError("MaaEnd mas_update 缺少 process 配置")
+        if not isinstance(process.get("entrypoint"), str) or not process[
+            "entrypoint"
+        ].strip():
+            raise ValueError("MaaEnd process.entrypoint 无效")
+        process_names = process.get("names")
+        if not isinstance(process_names, list) or not process_names or not all(
+            isinstance(name, str) and name.strip() for name in process_names
+        ):
+            raise ValueError("MaaEnd process.names 无效")
+
+        preserve = update.get("preserve", [])
+        if not isinstance(preserve, list) or not all(
+            isinstance(path, str) and path.strip() for path in preserve
+        ):
+            raise ValueError("MaaEnd mas_update preserve 无效")
+
+        normalized_update = {
+            "schema_version": 1,
+            "product": "MaaEnd",
+            "scope": "application",
+            "artifact": {
+                "format": "zip",
+                "asset_pattern": artifact["asset_pattern"].strip(),
+            },
+            "process": {
+                "entrypoint": process["entrypoint"].strip(),
+                "names": [name.strip() for name in process_names],
+            },
+            "preserve": [path.strip() for path in preserve],
+        }
+        return {
+            "version": self._interface["version"].strip(),
+            "github": self._interface["github"].strip(),
+            "mirrorchyan_rid": self._interface["mirrorchyan_rid"].strip(),
+            "mas_update": normalized_update,
+        }
+
     def get_interface_i18n(self, language: str) -> dict[str, str]:
         return deepcopy(self._get_locale(language))
 
@@ -372,6 +447,12 @@ def load_maaend_options(root_path: Path, force_reload: bool = False) -> dict[str
         root_path,
         force_reload=force_reload,
     ).get_options()
+
+
+def load_maaend_project_update_spec(root_path: Path) -> dict[str, Any]:
+    """从 MaaEnd Interface 读取更新器所需的规范化元数据。"""
+
+    return MaaEndResourceLoader.get_cached(root_path).get_project_update_spec()
 
 
 def try_load_maaend_options(root_path: Path) -> dict[str, Any] | None:

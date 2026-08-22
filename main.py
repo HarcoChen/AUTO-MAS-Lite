@@ -167,6 +167,7 @@ def main():
             tools_router,
             setting_router,
             update_router,
+            maaend_update_debug_router,
             ocr_router,
             ws_debug_router,
             qr_login_router,
@@ -198,6 +199,8 @@ def main():
         app.include_router(tools_router)
         app.include_router(setting_router)
         app.include_router(update_router)
+        if development_environment:
+            app.include_router(maaend_update_debug_router)
         app.include_router(ocr_router)
         app.include_router(ws_debug_router)
 

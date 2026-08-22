@@ -24,5 +24,13 @@ from .matomo import Matomo
 from .notification import Notify
 from .system import System
 from .update import Updater
+from .maaend_updater import MaaEndUpdateResult, run_maaend_update
 
-__all__ = ["Matomo", "Notify", "System", "Updater"]
+__all__ = [
+    "Matomo",
+    "Notify",
+    "System",
+    "Updater",
+    "MaaEndUpdateResult",
+    "run_maaend_update",
+]

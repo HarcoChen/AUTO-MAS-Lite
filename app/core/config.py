@@ -686,6 +686,37 @@ class AppConfig(GlobalConfig):
 
         return script_config.get_loaded_resource()
 
+    async def get_maaend_update_target(
+        self, script_id: str
+    ) -> tuple[Path, dict[str, Any]]:
+        """读取 MaaEnd 更新目标路径和规范化更新元数据。"""
+
+        script_config = self.ScriptConfig[uuid.UUID(script_id)]
+        if not isinstance(script_config, MaaEndConfig):
+            raise TypeError("脚本配置类型错误, 不是 MaaEnd 类型")
+        if script_config.is_locked:
+            raise RuntimeError(f"脚本 {script_id} 正在运行, 无法更新 MaaEnd")
+
+        root_path_value = str(script_config.get("Info", "Path")).strip()
+        if not root_path_value:
+            raise ValueError("MaaEnd 路径未配置")
+        root_path = Path(root_path_value).expanduser().resolve()
+        if not root_path.is_dir():
+            raise FileNotFoundError(f"MaaEnd 路径不存在: {root_path}")
+
+        from app.task.MaaEnd.resource_loader import load_maaend_project_update_spec
+
+        spec = await asyncio.to_thread(load_maaend_project_update_spec, root_path)
+        return root_path, spec
+
+    async def reload_maaend_resource(self, script_id: str) -> None:
+        """更新 MaaEnd 后刷新脚本资源缓存。"""
+
+        script_config = self.ScriptConfig[uuid.UUID(script_id)]
+        if not isinstance(script_config, MaaEndConfig):
+            raise TypeError("脚本配置类型错误, 不是 MaaEnd 类型")
+        await script_config.load_resource(force_reload=True)
+
     async def update_script(
         self, script_id: str, data: Dict[str, Dict[str, Any]]
     ) -> None:

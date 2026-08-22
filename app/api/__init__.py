@@ -32,6 +32,7 @@ from .history import router as history_router
 from .tools import router as tools_router
 from .setting import router as setting_router
 from .update import router as update_router
+from .maaend_update_debug import router as maaend_update_debug_router
 from .ocr import router as ocr_router
 from .ws_debug import router as ws_debug_router
 
@@ -53,6 +54,7 @@ __all__ = [
     "tools_router",
     "setting_router",
     "update_router",
+    "maaend_update_debug_router",
     "ocr_router",
     "ws_debug_router",
     "qr_login_router",

@@ -41,3 +41,81 @@ def test_missing_unrelated_task_resource_does_not_block_options(tmp_path, monkey
         "essenceLocations": [{"label": "枢纽区", "value": "Hub"}],
     }
     assert loader.get_task_i18n("zh-CN") == {"AutoEssence": "自动基质"}
+
+
+def test_project_update_spec_is_normalized_from_interface(tmp_path, monkeypatch):
+    write_json(
+        tmp_path / "interface.json",
+        {
+            "version": "4.5.3",
+            "github": "https://github.com/MAA1999/M9A",
+            "mirrorchyan_rid": "M9A",
+            "languages": {"zh-CN": "locales/zh-CN.json"},
+            "controller": [],
+            "import": [],
+            "mas_update": {
+                "schema_version": 1,
+                "product": "MaaEnd",
+                "scope": "application",
+                "artifact": {
+                    "format": "zip",
+                    "asset_pattern": "MaaEnd-{platform}-v{version}.zip",
+                },
+                "process": {"entrypoint": "MaaEnd", "names": ["MaaEnd"]},
+                "preserve": ["config/**", "userdata/**"],
+            },
+        },
+    )
+    write_json(tmp_path / "locales/zh-CN.json", {})
+    write_json(tmp_path / "config/mxu-MaaEnd.json", {"settings": {"language": "zh-CN"}})
+    monkeypatch.setattr(MaaEndResourceLoader, "_save_disk_cache", lambda self: None)
+
+    loader = MaaEndResourceLoader(tmp_path)
+
+    assert loader.get_project_update_spec() == {
+        "version": "4.5.3",
+        "github": "https://github.com/MAA1999/M9A",
+        "mirrorchyan_rid": "M9A",
+        "mas_update": {
+            "schema_version": 1,
+            "product": "MaaEnd",
+            "scope": "application",
+            "artifact": {
+                "format": "zip",
+                "asset_pattern": "MaaEnd-{platform}-v{version}.zip",
+            },
+            "process": {"entrypoint": "MaaEnd", "names": ["MaaEnd"]},
+            "preserve": ["config/**", "userdata/**"],
+        },
+    }
+
+
+def test_project_update_spec_rejects_non_application_scope(tmp_path, monkeypatch):
+    write_json(
+        tmp_path / "interface.json",
+        {
+            "version": "4.5.3",
+            "github": "https://github.com/MaaEnd/MaaEnd",
+            "mirrorchyan_rid": "MaaEnd",
+            "languages": {"zh-CN": "locales/zh-CN.json"},
+            "controller": [],
+            "import": [],
+            "mas_update": {
+                "schema_version": 1,
+                "product": "MaaEnd",
+                "scope": "resource",
+            },
+        },
+    )
+    write_json(tmp_path / "locales/zh-CN.json", {})
+    write_json(tmp_path / "config/mxu-MaaEnd.json", {"settings": {"language": "zh-CN"}})
+    monkeypatch.setattr(MaaEndResourceLoader, "_save_disk_cache", lambda self: None)
+
+    loader = MaaEndResourceLoader(tmp_path)
+
+    try:
+        loader.get_project_update_spec()
+    except ValueError as error:
+        assert "scope" in str(error)
+    else:
+        raise AssertionError("应拒绝 resource scope")

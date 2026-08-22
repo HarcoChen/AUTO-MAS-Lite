@@ -2321,6 +2321,38 @@ class SettingUpdateIn(BaseModel):
     data: GlobalConfig = Field(..., description="全局设置需要更新的数据")
 
 
+class MaaEndUpdaterDebugIn(BaseModel):
+    """开发环境调用 MaaEnd 外部更新器的参数。"""
+
+    scriptId: str = Field(..., description="MaaEnd 脚本配置 UUID")
+    updaterPath: Optional[str] = Field(
+        default=None,
+        description="MAAFW-Updater 可执行文件路径，未填写时由 runtime 环境变量提供",
+    )
+    currentVersion: str = Field(..., min_length=1, description="当前 MaaEnd 版本")
+    platform: Optional[str] = Field(
+        default=None,
+        description="目标平台，例如 linux-x86_64；为空时由更新器自动识别",
+    )
+    source: Literal["auto", "mirrorchyan", "github"] = Field(
+        default="auto", description="更新器下载源策略"
+    )
+    waitPid: Optional[int] = Field(default=None, ge=1, description="可选的等待进程 PID")
+    relaunch: Optional[str] = Field(default=None, description="更新完成后的重启入口")
+    timeoutSeconds: int = Field(
+        default=30 * 60,
+        ge=1,
+        le=2 * 60 * 60,
+        description="更新器进程最长运行时间（秒）",
+    )
+
+
+class MaaEndUpdaterDebugOut(OutBase):
+    """开发环境 MaaEnd 外部更新器结果。"""
+
+    data: Dict[str, Any] = Field(default_factory=dict, description="更新器执行结果")
+
+
 class UpdateCheckIn(BaseModel):
     current_version: str = Field(..., description="当前前端版本号")
     if_force: bool = Field(default=False, description="是否强制拉取更新信息")
