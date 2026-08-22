@@ -132,7 +132,6 @@ class AutoProxyTask(TaskExecuteBase):
         self.maaend_root_path = Path(self.script_config.get("Info", "Path"))
         self.maaend_exe_path = self.maaend_root_path / "MaaEnd.exe"
         self.maaend_set_path = self.maaend_root_path / "config"
-        self.maaend_cache_path = self.maaend_root_path / "cache"
         self.maaend_log_path = self.maaend_root_path / "debug/maa.log"
 
         self.maaend_log_monitor = LogMonitor(
@@ -229,16 +228,12 @@ class AutoProxyTask(TaskExecuteBase):
                     },
                 )
 
-        run_times_limit = self.script_config.get("Run", "RunTimesLimit")
-        maaend_update_retry_used = False
-        i = 0
-        while i < run_times_limit:
+        for i in range(self.script_config.get("Run", "RunTimesLimit")):
             if self.run_book:
                 break
-            i += 1
             self.retryable = True
             logger.info(
-                f"用户 {self.cur_user_item.name} - 尝试次数: {i}/{run_times_limit}"
+                f"用户 {self.cur_user_item.name} - 尝试次数: {i + 1}/{self.script_config.get('Run', 'RunTimesLimit')}"
             )
             self.log_start_time = datetime.now()
             self.cur_user_item.log_record[self.log_start_time] = self.cur_user_log = (
@@ -353,15 +348,7 @@ class AutoProxyTask(TaskExecuteBase):
                 await self.maaend_log_monitor.start_monitor_process(
                     self.maaend_process_manager.main_process, "stdout"
                 )
-            maaend_update_monitor_task = asyncio.create_task(
-                self.monitor_maaend_update_download()
-            )
             await self.wait_event.wait()
-            maaend_update_monitor_task.cancel()
-            try:
-                await maaend_update_monitor_task
-            except asyncio.CancelledError:
-                pass
             await self.maaend_log_monitor.stop()
 
             if self.cur_user_log.status == "Success!":
@@ -382,23 +369,6 @@ class AutoProxyTask(TaskExecuteBase):
                     )
 
             else:
-                if self.cur_user_log.status == "MaaEnd 正在更新":
-                    logger.info("MaaEnd 更新流程已退出，准备自动重试当前用户")
-                    self.script_info.log = "MaaEnd 更新完成，正在自动重试当前用户"
-
-                    # MaaEnd 更新后只重启脚本本体，保留 Endfield 进程减少重试成本。
-                    await self.maaend_process_manager.kill()
-                    await System.kill_process(self.maaend_exe_path)
-
-                    if not maaend_update_retry_used:
-                        maaend_update_retry_used = True
-                        i -= 1
-                        await asyncio.sleep(3)
-                        continue
-
-                    logger.warning("MaaEnd 更新后已自动重试一次，跳过后续重试")
-                    break
-
                 logger.warning(
                     f"用户: {self.cur_user_uid} - 代理任务异常: {self.cur_user_log.status}"
                 )
@@ -755,61 +725,8 @@ class AutoProxyTask(TaskExecuteBase):
         write_file(self.maaend_set_path / "mxu-MaaEnd.json", maaend_set)
         logger.success("MaaEnd 运行参数配置完成: 自动代理")
 
-    def has_maaend_local_install_file(self) -> bool:
-        """检测 MaaEnd 本地更新缓存中是否存在下载中的安装文件。"""
-
-        try:
-            if not self.maaend_cache_path.exists():
-                return False
-            for cache_file in self.maaend_cache_path.glob("*.downloading"):
-                if cache_file.is_file():
-                    logger.info(f"检测到 MaaEnd 本地安装文件正在下载: {cache_file}")
-                    return True
-        except OSError as e:
-            logger.warning(f"检测 MaaEnd 本地安装文件失败: {e}")
-        return False
-
-    async def monitor_maaend_update_download(self) -> None:
-        """低频检测 MaaEnd 更新下载状态，不中断 MaaEnd 自身更新流程。"""
-
-        if_maaend_updating = False
-        while not self.wait_event.is_set():
-            if not if_maaend_updating and self.has_maaend_local_install_file():
-                self.cur_user_log.content = ["检测到 MaaEnd 本地安装文件正在下载"]
-                self.cur_user_log.status = "MaaEnd 正在更新"
-                self.script_info.log = "检测到 MaaEnd 正在更新，正在等待更新进程退出"
-                if_maaend_updating = True
-
-            if (
-                if_maaend_updating
-                and not await self.maaend_process_manager.is_running()
-            ):
-                logger.info("MaaEnd 更新进程已退出，后台检测释放日志锁")
-                self.wait_event.set()
-                return
-
-            await asyncio.sleep(5)
-
     async def check_log(self, log_content: list[str], latest_time: datetime) -> None:
         """日志回调"""
-
-        if self.cur_user_log.status == "MaaEnd 正在更新":
-            log = "".join(log_content)
-            if log_content:
-                self.cur_user_log.content = log_content
-            if (
-                any(stop_pattern in log for stop_pattern in _MAAEND_STOP_PATTERNS)
-                or not await self.maaend_process_manager.is_running()
-            ):
-                logger.info("MaaEnd 更新进程已退出，日志锁已释放")
-                self.wait_event.set()
-            elif datetime.now() - latest_time > timedelta(
-                minutes=self.script_config.get("Run", "RunTimeLimit")
-            ):
-                logger.warning("MaaEnd 更新进程超时，日志锁已释放")
-                self.cur_user_log.status = "MaaEnd 更新超时"
-                self.wait_event.set()
-            return
 
         log = "".join(log_content)
         self.cur_user_log.content = log_content
@@ -926,25 +843,8 @@ class AutoProxyTask(TaskExecuteBase):
                 log_item.content = ["未捕获到任何日志内容"]
                 log_item.status = "未捕获到日志"
 
-            if log_item.status == "MaaEnd 正在更新":
-                continue
-
             await Config.save_maaend_log(log_path, log_item.content, log_item.status)
             user_logs_list.append(log_path.with_suffix(".json"))
-
-        latest_log_status = (
-            next(reversed(self.cur_user_item.log_record.values())).status
-            if self.cur_user_item.log_record
-            else ""
-        )
-        if_maaend_updating = latest_log_status == "MaaEnd 正在更新"
-        update_log_times = [
-            t
-            for t, log_item in self.cur_user_item.log_record.items()
-            if log_item.status == "MaaEnd 正在更新"
-        ]
-        for t in update_log_times:
-            self.cur_user_item.log_record.pop(t, None)
 
         statistics = await Config.merge_statistic_info(user_logs_list)
         statistics["user_info"] = self.cur_user_item.name
@@ -996,9 +896,6 @@ class AutoProxyTask(TaskExecuteBase):
                 f"已完成 {self.cur_user_item.name} 的 MaaEnd 自动代理任务",
                 3,
             )
-        elif if_maaend_updating:
-            logger.info(f"用户 {self.cur_user_uid} 的 MaaEnd 正在更新")
-            self.cur_user_item.status = "MaaEnd 正在更新"
         else:
             await self.cur_user_config.set("Data", "LastProxyStatus", "失败")
             logger.warning(f"用户 {self.cur_user_uid} 的自动代理任务未完成")
