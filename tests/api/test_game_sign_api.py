@@ -9,7 +9,7 @@ from app.api.tools import (
     update_game_sign_account,
 )
 from app.core.config import AppConfig
-from app.models.config import MaaConfig, MaaEndConfig
+from app.models.config import MaaConfig
 from app.models.schema import (
     GameSignAccountGetIn,
     GameSignAccountGroupConfig,
@@ -247,9 +247,6 @@ class LegacyUserSklandCredentialTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_maa_token_change_resets_skland_date(self) -> None:
         await self._assert_token_change_resets_date(MaaConfig)
-
-    async def test_maaend_token_change_resets_skland_date(self) -> None:
-        await self._assert_token_change_resets_date(MaaEndConfig)
 
     async def test_new_token_creates_one_tool_account(self) -> None:
         accounts = self.AccountCollection()

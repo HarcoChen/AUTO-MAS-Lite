@@ -34,7 +34,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
 from datetime import datetime, timedelta, date
-from typing import Literal, Optional, Union, Dict, Any, List
+from typing import Literal, Optional, Dict, Any, List
 import uuid
 import json
 
@@ -352,7 +352,7 @@ class AppConfig(GlobalConfig):
         )
         self._game_sign_result_date = today
 
-        # 将旧 MAA/MaaEnd 用户侧的森空岛凭据迁移到统一签到工具账号。
+        # 将旧 MAA 用户侧的森空岛凭据迁移到统一签到工具账号。
         # 先恢复快照，迁移时清理凭据变更账号才不会误清其它账号结果。
         await self._sync_legacy_skland_accounts()
 
@@ -1243,7 +1243,7 @@ class AppConfig(GlobalConfig):
             return False, None
 
         for script_config in script_values:
-            if not isinstance(script_config, (MaaConfig, MaaEndConfig)):
+            if not isinstance(script_config, MaaConfig):
                 continue
             for user_config in script_config.UserData.values():
                 user_token = str(
@@ -1270,7 +1270,7 @@ class AppConfig(GlobalConfig):
         enabled: bool | None = None,
         name: str | None = None,
     ) -> None:
-        """同步单个 MAA/MaaEnd 用户到游戏签到工具账号。"""
+        """同步单个 MAA 用户到游戏签到工具账号。"""
 
         tools_config = getattr(self, "ToolsConfig", None)
         accounts = getattr(tools_config, "GameSign_Accounts", None)
@@ -1359,14 +1359,14 @@ class AppConfig(GlobalConfig):
     async def _sync_legacy_skland_sign_date(
         self, *, token: str, sign_date: str
     ) -> None:
-        """回写旧 MAA/MaaEnd 用户的森空岛签到日期，保持旧用户列表状态一致。"""
+        """回写旧 MAA 用户的森空岛签到日期，保持旧用户列表状态一致。"""
 
         token_value = str(token or "").strip()
         if not token_value:
             return
 
         for script_config in self.ScriptConfig.values():
-            if not isinstance(script_config, (MaaConfig, MaaEndConfig)):
+            if not isinstance(script_config, MaaConfig):
                 continue
             for user_config in script_config.UserData.values():
                 if (
@@ -1382,10 +1382,10 @@ class AppConfig(GlobalConfig):
                     await user_config.set("Data", "LastSklandDate", sign_date)
 
     async def _sync_legacy_skland_accounts(self) -> None:
-        """启动时迁移已有 MAA/MaaEnd 森空岛用户，避免旧配置失去签到能力。"""
+        """启动时迁移已有 MAA 森空岛用户，避免旧配置失去签到能力。"""
 
         for script_config in self.ScriptConfig.values():
-            if not isinstance(script_config, (MaaConfig, MaaEndConfig)):
+            if not isinstance(script_config, MaaConfig):
                 continue
             for user_uid, user_config in script_config.UserData.items():
                 await self._sync_legacy_skland_user(
@@ -1410,7 +1410,7 @@ class AppConfig(GlobalConfig):
         user_config = script_config.UserData[user_uid]
 
         # A replaced Skland credential must be allowed to sign again today.
-        reset_skland_date = isinstance(script_config, (MaaConfig, MaaEndConfig))
+        reset_skland_date = isinstance(script_config, MaaConfig)
         skland_token_changed = False
         legacy_skland_info = data.get("Info", {}) if reset_skland_date else {}
         legacy_old_token = ""
@@ -1485,7 +1485,7 @@ class AppConfig(GlobalConfig):
         user_uid = uuid.UUID(user_id)
         script_config = self.ScriptConfig[script_uid]
         legacy_token = ""
-        if isinstance(script_config, (MaaConfig, MaaEndConfig)):
+        if isinstance(script_config, MaaConfig):
             legacy_token = str(
                 self._safe_config_get(
                     script_config.UserData[user_uid], "Info", "SklandToken", ""
