@@ -27,23 +27,25 @@ from datetime import datetime
 from pathlib import Path
 
 from app.core import Broadcast, Config
-from app.models.task import TaskExecuteBase, ScriptItem
+from app.models.task import ScriptItem
 from app.models.ConfigBase import MultipleConfig
 from app.models.config import MaaEndConfig, MaaEndUserConfig
 from app.models.emulator import DeviceBase
-from app.services import System
-from app.utils import decode_bytes, get_logger, ProcessManager, is_process_running
+from app.utils import decode_bytes, get_logger
 from app.utils.constants import UTC4
 from app.utils.io import read_file, write_file
-from .ScriptConfig import normalize_maaend_config
+from .base import MaaEndUserTaskBase
+from .ScriptConfig import normalize_maaend_config, restore_maaend_local_fields
 from .resource_loader import load_maaend_task_i18n
-from .tools import login, replace_account_switch_task
+from .tools import launch_endfield, login, replace_account_switch_task
 
 logger = get_logger("MaaEnd 人工检查")
 
 
-class ManualReviewTask(TaskExecuteBase):
+class ManualReviewTask(MaaEndUserTaskBase):
     """MaaEnd 人工检查模式"""
+
+    mode_name = "MaaEnd 人工检查"
 
     def __init__(
         self,
@@ -52,36 +54,16 @@ class ManualReviewTask(TaskExecuteBase):
         user_config: MultipleConfig[MaaEndUserConfig],
         emulator_manager: DeviceBase | None,
     ):
-        super().__init__()
+        super().__init__(script_info, script_config, user_config, emulator_manager)
 
-        if script_info.task_info is None:
-            raise RuntimeError("ScriptItem 未绑定到 TaskItem")
-
-        self.task_info = script_info.task_info
-        self.script_info = script_info
-        self.script_config = script_config
-        self.user_config = user_config
-        self.emulator_manager = emulator_manager
-        self.cur_user_item = self.script_info.user_list[self.script_info.current_index]
-        self.cur_user_uid = uuid.UUID(self.cur_user_item.user_id)
-        self.cur_user_config = self.user_config[self.cur_user_uid]
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
-        self.maaend_config_path = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile"
-        )
-        self.check_result = "-"
+        self.maaend_config_path = self.user_config_dir
 
     async def check(self) -> str:
 
         if self.emulator_manager is not None:
             return "暂不支持使用模拟器进行人工排查"
 
-        account_id = str(self.cur_user_config.get("Info", "Id")).strip()
+        account_id = self.account_id
         if (
             self.script_config.get("Run", "AccountSwitchMethod") == "MAAEND"
             and account_id
@@ -97,12 +79,6 @@ class ManualReviewTask(TaskExecuteBase):
 
     async def prepare(self):
 
-        if self.emulator_manager is None:
-            self.game_process_manager = ProcessManager()
-        self.maaend_process_manager = ProcessManager()
-        self.maaend_root_path = Path(self.script_config.get("Info", "Path"))
-        self.maaend_exe_path = self.maaend_root_path / "MaaEnd.exe"
-        self.maaend_set_path = self.maaend_root_path / "config"
         self.message_queue = asyncio.Queue()
         await Broadcast.subscribe(self.message_queue)
 
@@ -137,34 +113,12 @@ class ManualReviewTask(TaskExecuteBase):
 
             try:
                 self.script_info.log = "正在启动游戏..."
-                if self.emulator_manager is None:
-                    if is_process_running("Endfield.exe"):
-                        logger.info(
-                            "检测到终末地客户端进程已在运行，跳过由 MAS 重复启动游戏"
-                        )
-                        self.script_info.log = "检测到游戏已在运行，跳过启动游戏"
-                    else:
-                        logger.info(
-                            f"启动终末地: {self.script_config.get('Game', 'Path')} - {self.script_config.get('Game', 'Arguments')}"
-                        )
-                        await self.game_process_manager.open_process(
-                            self.script_config.get("Game", "Path"),
-                            *str(self.script_config.get("Game", "Arguments")).split(
-                                " "
-                            ),
-                        )
-                        await asyncio.sleep(
-                            self.script_config.get("Game", "WaitTime")
-                        )
-                    emulator_info = None
-                else:
-                    logger.info(
-                        f"启动模拟器: {self.script_config.get('Game', 'EmulatorIndex')}"
-                    )
-                    emulator_info = await self.emulator_manager.open(
-                        self.script_config.get("Game", "EmulatorIndex"),
-                        "com.hypergryph.endfield",
-                    )
+                emulator_info = await launch_endfield(
+                    self.script_info,
+                    self.script_config,
+                    self.emulator_manager,
+                    self.game_process_manager,
+                )
             except Exception as e:
 
                 logger.opt(exception=True).warning(f"用户 {self.cur_user_item.user_id} 游戏启动失败: {e}")
@@ -190,7 +144,7 @@ class ManualReviewTask(TaskExecuteBase):
                     break
                 continue
 
-            account_id = str(self.cur_user_config.get("Info", "Id")).strip()
+            account_id = self.account_id
             account_switch_method = self.script_config.get("Run", "AccountSwitchMethod")
             self.script_info.log = "正在启动游戏...\n游戏启动成功"
             try:
@@ -259,42 +213,25 @@ class ManualReviewTask(TaskExecuteBase):
     async def _run_maaend_account_switch(self, account_id: str) -> None:
         """临时运行一个 MaaEnd 账号切换任务。"""
 
-        await self.maaend_process_manager.kill()
-        await System.kill_process(self.maaend_exe_path)
+        await self.kill_maaend()
 
         with tempfile.TemporaryDirectory(prefix="auto-mas-maaend-login-") as temp_dir:
             backup_config_path = Path(temp_dir) / "config"
             had_local_config = self.maaend_set_path.exists()
+            local_config = None
             if had_local_config:
                 shutil.copytree(self.maaend_set_path, backup_config_path)
+                backup_file = backup_config_path / "mxu-MaaEnd.json"
+                if backup_file.exists():
+                    local_config = read_file(backup_file)
 
             try:
                 shutil.rmtree(self.maaend_set_path, ignore_errors=True)
                 shutil.copytree(self.maaend_config_path, self.maaend_set_path)
                 config_path = self.maaend_set_path / "mxu-MaaEnd.json"
-                maaend_set = read_file(config_path)
-
-                local_config = None
-                backup_file = backup_config_path / "mxu-MaaEnd.json"
-                if backup_file.exists():
-                    local_config = read_file(backup_file)
-                for field in ("version", "interfaceTaskSnapshot"):
-                    maaend_set.pop(field, None)
-                    if local_config is not None and field in local_config:
-                        maaend_set[field] = local_config[field]
-
-                settings = maaend_set.get("settings")
-                if isinstance(settings, dict):
-                    settings.pop("welcomeShownHash", None)
-                if local_config is not None:
-                    local_settings = local_config.get("settings")
-                    if (
-                        isinstance(local_settings, dict)
-                        and "welcomeShownHash" in local_settings
-                    ):
-                        maaend_set.setdefault("settings", {})["welcomeShownHash"] = (
-                            local_settings["welcomeShownHash"]
-                        )
+                maaend_set = restore_maaend_local_fields(
+                    read_file(config_path), local_config
+                )
 
                 maaend_set = normalize_maaend_config(
                     maaend_set=maaend_set,
@@ -355,8 +292,7 @@ class ManualReviewTask(TaskExecuteBase):
                 if f"任务完成: {account_switch_task_name}" not in log:
                     raise RuntimeError("MAAEND 账号切换进程异常退出")
             finally:
-                await self.maaend_process_manager.kill()
-                await System.kill_process(self.maaend_exe_path)
+                await self.kill_maaend()
                 shutil.rmtree(self.maaend_set_path, ignore_errors=True)
                 if had_local_config:
                     shutil.copytree(backup_config_path, self.maaend_set_path)
@@ -373,25 +309,6 @@ class ManualReviewTask(TaskExecuteBase):
             else:
                 self.message_queue.task_done()
 
-    async def kill_managed_process(self) -> None:
-        """中止关联进程"""
-
-        try:
-            await self.maaend_process_manager.kill()
-            await System.kill_process(self.maaend_exe_path)
-        except Exception as e:
-            logger.opt(exception=True).warning(f"关闭 MaaEnd 失败: {e}")
-        try:
-            if self.emulator_manager is None:
-                await self.game_process_manager.kill()
-                await System.kill_process(self.script_config.get("Game", "Path"))
-            else:
-                await self.emulator_manager.close(
-                    self.script_config.get("Game", "EmulatorIndex")
-                )
-        except Exception as e:
-            logger.opt(exception=True).warning(f"关闭游戏失败: {e}")
-
     async def final_task(self):
 
         if self.check_result != "Pass":
@@ -407,12 +324,3 @@ class ManualReviewTask(TaskExecuteBase):
             logger.info(f"用户 {self.cur_user_uid} 未通过人工排查")
             await self.cur_user_config.set("Data", "IfPassCheck", False)
             self.cur_user_item.status = "异常"
-
-    async def on_crash(self, e: Exception):
-        self.cur_user_item.status = "异常"
-        logger.opt(exception=True).warning(f"人工排查任务出现异常: {e}")
-        await Config.send_websocket_message(
-            id=self.task_info.task_id,
-            type="Info",
-            data={"Error": f"人工排查任务出现异常: {e}"},
-        )

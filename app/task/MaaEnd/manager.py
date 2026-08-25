@@ -93,12 +93,7 @@ class MaaEndManager(TaskExecuteBase):
         ).exists():
             return "未完成游戏配置, 请检查脚本配置中的游戏设置！"
         if self.task_info.mode == "AutoProxy" and not (
-            Path(
-                Config.ScriptConfig[uuid.UUID(self.script_info.script_id)].get(
-                    "Info", "Path"
-                )
-            )
-            / "config/mxu-MaaEnd.json"
+            Path(script_config.get("Info", "Path")) / "config/mxu-MaaEnd.json"
         ).exists():
             return "MaaEnd 配置文件不存在, 请检查 MaaEnd 路径设置或先启动 MaaEnd 完成配置文件生成！"
 
@@ -107,8 +102,9 @@ class MaaEndManager(TaskExecuteBase):
     async def prepare(self):
 
         # 锁定脚本配置并加载用户配置
-        await Config.ScriptConfig[uuid.UUID(self.script_info.script_id)].lock()
-        self.script_config = Config.ScriptConfig[uuid.UUID(self.script_info.script_id)]
+        script_config = Config.ScriptConfig[uuid.UUID(self.script_info.script_id)]
+        await script_config.lock()
+        self.script_config = script_config
         self.user_config = MultipleConfig([MaaEndUserConfig])
         await self.user_config.load(await self.script_config.UserData.toDict())
         logger.success(f"{self.script_info.script_id}已锁定, MAAEnd配置提取完成")

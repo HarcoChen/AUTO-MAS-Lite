@@ -19,8 +19,9 @@
 #   Contact: DLmaster_361@163.com
 
 
+from .game import launch_endfield
 from .login import login, replace_account_switch_task
 from .notify import push_notification
 
 
-__all__ = ["login", "push_notification", "replace_account_switch_task"]
+__all__ = ["login", "launch_endfield", "push_notification", "replace_account_switch_task"]

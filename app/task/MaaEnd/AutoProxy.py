@@ -20,22 +20,23 @@
 
 
 import re
-import uuid
 import shutil
 import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
 
 from app.core import Config
-from app.models.task import TaskExecuteBase, ScriptItem, LogRecord
+from app.models.task import ScriptItem, LogRecord
 from app.models.ConfigBase import MultipleConfig
 from app.models.config import MaaEndConfig, MaaEndUserConfig
 from app.models.emulator import DeviceBase, DeviceInfo
-from app.services import Notify, System
-from app.utils import get_logger, LogMonitor, ProcessManager, is_process_running
+from app.services import Notify
+from app.utils import get_logger, LogMonitor
 from app.utils.io import read_file, write_file
 from app.utils.constants import UTC4, MAAEND_TASKS
-from .tools import login, push_notification, replace_account_switch_task
+from .base import MaaEndUserTaskBase
+from .tools import login, launch_endfield, push_notification, replace_account_switch_task
+from .ScriptConfig import restore_maaend_local_fields, select_maaend_instance
 from .resource_loader import (
     load_maaend_interface_i18n,
     load_maaend_task_i18n,
@@ -51,9 +52,23 @@ _MAAEND_STOP_PATTERNS = (
     "任务完成: StopTask",
 )
 
+# (奖励组, 关卡) -> MaaEnd 奖励组选项值；关卡集合与 MAAEND_STAGE_WITH_AB 一致
+_MAAEND_REWARDS_SET_CASES = {
+    ("RewardsSetA", "OperatorEXP"): "CognitiveCarriers",
+    ("RewardsSetA", "Promotions"): "Protoset",
+    ("RewardsSetA", "SkillUp"): "Protohedron",
+    ("RewardsSetA", "WeaponTune"): "HeavyCastDie",
+    ("RewardsSetB", "OperatorEXP"): "AdvancedCombatRecord",
+    ("RewardsSetB", "Promotions"): "Protodisk",
+    ("RewardsSetB", "SkillUp"): "Protoprism",
+    ("RewardsSetB", "WeaponTune"): "CastDie",
+}
 
-class AutoProxyTask(TaskExecuteBase):
+
+class AutoProxyTask(MaaEndUserTaskBase):
     """MaaEnd 自动代理模式"""
+
+    mode_name = "MaaEnd 自动代理"
 
     def __init__(
         self,
@@ -62,20 +77,8 @@ class AutoProxyTask(TaskExecuteBase):
         user_config: MultipleConfig[MaaEndUserConfig],
         emulator_manager: DeviceBase | None,
     ):
-        super().__init__()
+        super().__init__(script_info, script_config, user_config, emulator_manager)
 
-        if script_info.task_info is None:
-            raise RuntimeError("ScriptItem 未绑定到 TaskItem")
-
-        self.task_info = script_info.task_info
-        self.script_info = script_info
-        self.script_config = script_config
-        self.user_config = user_config
-        self.emulator_manager = emulator_manager
-        self.cur_user_item = self.script_info.user_list[self.script_info.current_index]
-        self.cur_user_uid = uuid.UUID(self.cur_user_item.user_id)
-        self.cur_user_config = self.user_config[self.cur_user_uid]
-        self.check_result = "-"
         self.account_switch_task_name = ""
         self.color_match_failed_message: str | None = None
         self.retryable = True
@@ -92,7 +95,7 @@ class AutoProxyTask(TaskExecuteBase):
             self.cur_user_item.status = "跳过"
             return "今日代理次数已达上限, 跳过该用户"
 
-        account_id = str(self.cur_user_config.get("Info", "Id")).strip()
+        account_id = self.account_id
         if (
             self.script_config.get("Run", "AccountSwitchMethod") == "MAAEND"
             and account_id
@@ -104,16 +107,7 @@ class AutoProxyTask(TaskExecuteBase):
                     "请检查账号ID或改用 MAS 自建账号切换"
                 )
 
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
-        config_file = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile/mxu-MaaEnd.json"
-        )
-        if not config_file.exists():
+        if not (self.user_config_dir / "mxu-MaaEnd.json").exists():
             self.cur_user_item.status = "异常"
             return "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
 
@@ -121,16 +115,10 @@ class AutoProxyTask(TaskExecuteBase):
 
     async def prepare(self):
 
-        self.maaend_process_manager = ProcessManager()
-        if self.emulator_manager is None:
-            self.game_process_manager = ProcessManager()
         self.wait_event = asyncio.Event()
         self.user_start_time = datetime.now()
         self.log_start_time = datetime.now()
 
-        self.maaend_root_path = Path(self.script_config.get("Info", "Path"))
-        self.maaend_exe_path = self.maaend_root_path / "MaaEnd.exe"
-        self.maaend_set_path = self.maaend_root_path / "config"
         self.maaend_cache_path = self.maaend_root_path / "cache"
         self.maaend_log_path = self.maaend_root_path / "debug/maa.log"
 
@@ -194,32 +182,12 @@ class AutoProxyTask(TaskExecuteBase):
             self.script_info.log = "正在启动游戏..."
             # 启动游戏
             try:
-                if self.emulator_manager is None:
-                    if is_process_running("Endfield.exe"):
-                        logger.info(
-                            "检测到终末地客户端进程已在运行，跳过由 MAS 重复启动游戏"
-                        )
-                        self.script_info.log = "检测到游戏已在运行，跳过启动游戏"
-                    else:
-                        logger.info(
-                            f"启动终末地: {self.script_config.get('Game', 'Path')} - {self.script_config.get('Game', 'Arguments')}"
-                        )
-                        await self.game_process_manager.open_process(
-                            self.script_config.get("Game", "Path"),
-                            *str(self.script_config.get("Game", "Arguments")).split(
-                                " "
-                            ),
-                        )
-                        await asyncio.sleep(self.script_config.get("Game", "WaitTime"))
-                    emulator_info = None
-                else:
-                    logger.info(
-                        f"启动模拟器: {self.script_config.get('Game', 'EmulatorIndex')}"
-                    )
-                    emulator_info = await self.emulator_manager.open(
-                        self.script_config.get("Game", "EmulatorIndex"),
-                        "com.hypergryph.endfield",
-                    )
+                emulator_info = await launch_endfield(
+                    self.script_info,
+                    self.script_config,
+                    self.emulator_manager,
+                    self.game_process_manager,
+                )
             except Exception as e:
                 await self.handle_pre_maaend_error("模拟器启动失败", e)
                 continue
@@ -228,7 +196,7 @@ class AutoProxyTask(TaskExecuteBase):
                 "正在启动游戏...\n游戏启动成功\n正在登录「明日方舟：终末地」..."
             )
 
-            account_id = str(self.cur_user_config.get("Info", "Id")).strip()
+            account_id = self.account_id
             account_switch_method = self.script_config.get("Run", "AccountSwitchMethod")
             if account_switch_method == "MAS":
                 try:
@@ -310,8 +278,7 @@ class AutoProxyTask(TaskExecuteBase):
                 )
 
                 # 中止相关程序
-                await self.maaend_process_manager.kill()
-                await System.kill_process(self.maaend_exe_path)
+                await self.kill_maaend()
 
                 # 执行任务后脚本
                 if self.cur_user_config.get("Info", "IfScriptAfterTask"):
@@ -326,8 +293,7 @@ class AutoProxyTask(TaskExecuteBase):
                     self.script_info.log = "MaaEnd 更新完成，正在自动重试当前用户"
 
                     # MaaEnd 更新后只重启脚本本体，保留 Endfield 进程减少重试成本。
-                    await self.maaend_process_manager.kill()
-                    await System.kill_process(self.maaend_exe_path)
+                    await self.kill_maaend()
 
                     if not maaend_update_retry_used:
                         maaend_update_retry_used = True
@@ -394,52 +360,20 @@ class AutoProxyTask(TaskExecuteBase):
             3,
         )
 
-    async def kill_managed_process(self) -> None:
-        """中止关联进程"""
-
-        try:
-            logger.info(f"中止 MaaEnd 进程: {self.maaend_exe_path}")
-            await self.maaend_process_manager.kill()
-            await System.kill_process(self.maaend_exe_path)
-        except Exception as e:
-            logger.opt(exception=True).warning(f"中止 MaaEnd 进程失败: {e}")
-        try:
-            if self.emulator_manager is None:
-                logger.info("中止终末地进程")
-                await self.game_process_manager.kill()
-                await System.kill_process(self.script_config.get("Game", "Path"))
-            else:
-                logger.info("中止模拟器进程")
-                await self.emulator_manager.close(
-                    self.script_config.get("Game", "EmulatorIndex")
-                )
-        except Exception as e:
-            logger.opt(exception=True).warning(f"关闭模拟器失败: {e}")
-
     async def set_maaend(self, device_info: DeviceInfo | None) -> None:
         """写入 MaaEnd 运行前配置"""
 
         logger.info("开始配置 MaaEnd 运行参数: 自动代理")
 
         # 配置前关闭可能未正常退出的脚本进程
-        await self.maaend_process_manager.kill()
-        await System.kill_process(self.maaend_exe_path)
+        await self.kill_maaend()
 
         maaend_local_config = None
         if (self.maaend_set_path / "mxu-MaaEnd.json").exists():
             maaend_local_config = read_file(self.maaend_set_path / "mxu-MaaEnd.json")
 
-        config_user_id = (
-            "Default"
-            if self.cur_user_config.get("Info", "Mode") == "简洁"
-            else self.cur_user_uid
-        )
-        maaend_config_path = (
-            Path.cwd()
-            / f"data/{self.script_info.script_id}/{config_user_id}/ConfigFile"
-        )
-        maaend_config_file = maaend_config_path / "mxu-MaaEnd.json"
-        if not maaend_config_file.exists():
+        maaend_config_path = self.user_config_dir
+        if not (maaend_config_path / "mxu-MaaEnd.json").exists():
             raise FileNotFoundError(
                 "未找到 MaaEnd 配置文件, 请先完成「MaaEnd 配置」步骤"
             )
@@ -447,41 +381,13 @@ class AutoProxyTask(TaskExecuteBase):
         shutil.rmtree(self.maaend_set_path, ignore_errors=True)
         shutil.copytree(maaend_config_path, self.maaend_set_path)
         maaend_set = read_file(self.maaend_set_path / "mxu-MaaEnd.json")
-        for field in ("version", "interfaceTaskSnapshot"):
-            maaend_set.pop(field, None)
-            if maaend_local_config is not None and field in maaend_local_config:
-                maaend_set[field] = maaend_local_config[field]
+        restore_maaend_local_fields(maaend_set, maaend_local_config)
 
-        settings = maaend_set.get("settings")
-        if isinstance(settings, dict):
-            settings.pop("welcomeShownHash", None)
-
-        if maaend_local_config is not None:
-            local_settings = maaend_local_config.get("settings")
-            if (
-                isinstance(local_settings, dict)
-                and "welcomeShownHash" in local_settings
-            ):
-                maaend_set.setdefault("settings", {})["welcomeShownHash"] = (
-                    local_settings["welcomeShownHash"]
-                )
-
-        instances = maaend_set.get("instances")
-        if not isinstance(instances, list) or len(instances) == 0:
+        maaend_instance = select_maaend_instance(maaend_set)
+        if maaend_instance is None:
             raise ValueError(
                 "MaaEnd 配置文件中未找到可运行实例，请先完成「MaaEnd 配置」步骤"
             )
-
-        maaend_instance = None
-        for instance in instances:
-            if instance.get("id") == "automas" or instance.get("name") == "AUTO-MAS":
-                maaend_instance = instance
-                break
-            if instance.get("id") == maaend_set.get("lastActiveInstanceId"):
-                maaend_instance = instance
-                break
-        if maaend_instance is None:
-            maaend_instance = instances[0]
         self.maaend_instance_name = (
             maaend_instance.get("name")
             or maaend_instance.get("customName")
@@ -495,11 +401,10 @@ class AutoProxyTask(TaskExecuteBase):
             }
         maaend_tasks = maaend_instance["tasks"]
 
-        account_id = str(self.cur_user_config.get("Info", "Id")).strip()
         account_switch_method = self.script_config.get("Run", "AccountSwitchMethod")
         replace_account_switch_task(
             tasks=maaend_tasks,
-            account_id=(account_id if account_switch_method == "MAAEND" else ""),
+            account_id=(self.account_id if account_switch_method == "MAAEND" else ""),
             controller_type=str(self.script_config.get("Game", "ControllerType")),
             task_id=f"mas{self.cur_user_uid.hex[:4]}",
         )
@@ -628,56 +533,16 @@ class AutoProxyTask(TaskExecuteBase):
                         "type": "select",
                         "caseName": sanity_task_key[option],
                     }
-                reward_option = sanity_task_key.get("RewardsSetOption")
-                if reward_option == "RewardsSetA":
-                    if sanity_task_type == "OperatorProgression":
-                        if sanity_task_key["OperatorProgression"] == "OperatorEXP":
-                            task["optionValues"]["OperatorEXPRewardsSetOption"] = {
-                                "type": "select",
-                                "caseName": "CognitiveCarriers",
-                            }
-                        elif sanity_task_key["OperatorProgression"] == "Promotions":
-                            task["optionValues"]["PromotionsRewardsSetOption"] = {
-                                "type": "select",
-                                "caseName": "Protoset",
-                            }
-                        elif sanity_task_key["OperatorProgression"] == "SkillUp":
-                            task["optionValues"]["SkillUpRewardsSetOption"] = {
-                                "type": "select",
-                                "caseName": "Protohedron",
-                            }
-                    elif (
-                        sanity_task_type == "WeaponProgression"
-                        and sanity_task_key["WeaponProgression"] == "WeaponTune"
-                    ):
-                        task["optionValues"]["WeaponTuneRewardsSetOption"] = {
+                # 仅干员/武器进阶的 AB 关需要奖励组选项，其余关卡查表落空即跳过
+                if sanity_task_type in ("OperatorProgression", "WeaponProgression"):
+                    stage = sanity_task_key[sanity_task_type]
+                    reward_case = _MAAEND_REWARDS_SET_CASES.get(
+                        (sanity_task_key.get("RewardsSetOption", ""), stage)
+                    )
+                    if reward_case is not None:
+                        task["optionValues"][f"{stage}RewardsSetOption"] = {
                             "type": "select",
-                            "caseName": "HeavyCastDie",
-                        }
-                elif reward_option == "RewardsSetB":
-                    if sanity_task_type == "OperatorProgression":
-                        if sanity_task_key["OperatorProgression"] == "OperatorEXP":
-                            task["optionValues"]["OperatorEXPRewardsSetOption"] = {
-                                "type": "select",
-                                "caseName": "AdvancedCombatRecord",
-                            }
-                        elif sanity_task_key["OperatorProgression"] == "Promotions":
-                            task["optionValues"]["PromotionsRewardsSetOption"] = {
-                                "type": "select",
-                                "caseName": "Protodisk",
-                            }
-                        elif sanity_task_key["OperatorProgression"] == "SkillUp":
-                            task["optionValues"]["SkillUpRewardsSetOption"] = {
-                                "type": "select",
-                                "caseName": "Protoprism",
-                            }
-                    elif (
-                        sanity_task_type == "WeaponProgression"
-                        and sanity_task_key["WeaponProgression"] == "WeaponTune"
-                    ):
-                        task["optionValues"]["WeaponTuneRewardsSetOption"] = {
-                            "type": "select",
-                            "caseName": "CastDie",
+                            "caseName": reward_case,
                         }
             elif (
                 if_quick_config
@@ -842,8 +707,7 @@ class AutoProxyTask(TaskExecuteBase):
         ):
             try:
                 logger.info(f"中止 MaaEnd 进程: {self.maaend_exe_path}")
-                await self.maaend_process_manager.kill()
-                await System.kill_process(self.maaend_exe_path)
+                await self.kill_maaend()
             except Exception as e:
                 logger.opt(exception=True).warning(f"中止 MaaEnd 进程失败: {e}")
         else:
@@ -942,12 +806,3 @@ class AutoProxyTask(TaskExecuteBase):
             await self.cur_user_config.set("Data", "LastProxyStatus", "失败")
             logger.warning(f"用户 {self.cur_user_uid} 的自动代理任务未完成")
             self.cur_user_item.status = "异常"
-
-    async def on_crash(self, e: Exception):
-        self.cur_user_item.status = "异常"
-        logger.opt(exception=True).warning(f"自动代理任务出现异常: {e}")
-        await Config.send_websocket_message(
-            id=self.task_info.task_id,
-            type="Info",
-            data={"Error": f"自动代理任务出现异常: {e}"},
-        )
