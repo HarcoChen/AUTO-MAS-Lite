@@ -1,24 +1,16 @@
 <template>
-  <teleport to="body">
-    <div v-if="showMaaEndConfigMask" class="maaend-config-mask">
-      <div class="mask-content">
-        <div class="mask-icon">
-          <SettingOutlined :style="{ fontSize: '48px', color: 'var(--ant-color-primary)' }" />
-        </div>
-        <h2 class="mask-title">{{ t('edit.maaendConfigurationProgress') }}</h2>
-        <p class="mask-description">
-          {{ t('edit.scriptLevelMaaendConfiguration2') }}
-          <br />
-          {{ t('edit.clickSaveConfigurationWhen') }}
-        </p>
-        <div class="mask-actions">
-          <a-button v-if="maaEndTaskId" type="primary" size="large" @click="handleSaveMaaEndConfig">
-            {{ t('edit.saveConfiguration') }}
-          </a-button>
-        </div>
-      </div>
-    </div>
-  </teleport>
+  <GuiSessionMask
+    :open="showMaaEndConfigMask"
+    :icon="SettingOutlined"
+    :title="t('edit.maaendConfigurationProgress')"
+    :description="`${t('edit.scriptLevelMaaendConfiguration2')}\n${t('edit.clickSaveConfigurationWhen')}`"
+  >
+    <template #actions>
+      <a-button v-if="maaEndTaskId" type="primary" size="large" @click="handleSaveMaaEndConfig">
+        {{ t('edit.saveConfiguration') }}
+      </a-button>
+    </template>
+  </GuiSessionMask>
 
   <ScriptEditHeader script-type="MaaEnd" @cancel="handleCancel">
     <template #extra-actions>
@@ -32,7 +24,7 @@
         <template #icon>
           <SettingOutlined />
         </template>
-        {{ showMaaEndConfigMask ? '正在配置' : '配置 MaaEnd' }}
+        {{ showMaaEndConfigMask ? t('edit.maaEndConfiguring') : t('comp.configureMaaend') }}
       </a-button>
     </template>
   </ScriptEditHeader>
@@ -40,7 +32,7 @@
   <ConfigLockPanel :script-id="scriptId" content-class="script-edit-content">
     <a-card :title="t('edit.maaendScriptConfiguration')" :loading="pageLoading" class="config-card">
       <template #extra>
-        <a-tag class="type-tag">MaaEnd</a-tag>
+        <a-tag>MaaEnd</a-tag>
       </template>
 
       <a-alert :message="t('edit.important')" type="warning" show-icon class="notice-alert">
@@ -101,15 +93,14 @@
                     </a-tooltip>
                   </span>
                 </template>
-                <a-input-group compact class="path-input-group">
+                <a-input-group compact>
                   <a-input
                     v-model:value="formData.path"
                     :placeholder="t('edit.pickDirectoryHoldingMaaend')"
                     size="large"
-                    class="path-input"
                     readonly
                   />
-                  <a-button size="large" class="path-button" @click="selectMaaEndPath">
+                  <a-button size="large" @click="selectMaaEndPath">
                     <template #icon>
                       <FolderOpenOutlined />
                     </template>
@@ -239,15 +230,14 @@
                     </a-tooltip>
                   </span>
                 </template>
-                <a-input-group compact class="path-input-group">
+                <a-input-group compact>
                   <a-input
                     v-model:value="maaEndConfig.Game.Path"
                     :placeholder="t('edit.pickGameExecutable')"
                     size="large"
-                    class="path-input"
                     readonly
                   />
-                  <a-button size="large" class="path-button" @click="selectGamePath">
+                  <a-button size="large" @click="selectGamePath">
                     <template #icon>
                       <FolderOpenOutlined />
                     </template>
@@ -502,6 +492,7 @@ import { TaskCreateIn } from '@/api/models/TaskCreateIn'
 import { MAS_QQ_GROUP_URL, handleExternalLink } from '@/utils/openExternal'
 import { FolderOpenOutlined, QuestionCircleOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import ScriptEditHeader from '@/components/ScriptEditHeader.vue'
+import GuiSessionMask from '@/components/GuiSessionMask.vue'
 
 const { t } = useI18n()
 
@@ -930,51 +921,20 @@ onBeforeUnmount(() => {
 
 .config-card {
   border-radius: 16px;
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.08),
-    0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--ant-color-border-secondary);
-  overflow: hidden;
+  box-shadow: none;
 }
 
-.config-card :deep(.ant-card-head) {
-  background: var(--ant-color-bg-container);
-  border-bottom: 2px solid var(--ant-color-border-secondary);
-  padding: 24px 32px;
-}
-
-.config-card :deep(.ant-card-body) {
-  padding: 32px;
-}
-
-.type-tag {
-  font-size: 14px;
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--ant-color-primary-border);
-  color: var(--ant-color-primary);
-  background: var(--ant-color-primary-bg);
-}
-
-.maaend-tip {
+.notice-alert {
   margin-bottom: 24px;
-  border-radius: 8px;
 }
 
-.maaend-tip :deep(.ant-alert-description) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.notice-content p {
+  margin: 0;
 }
 
 .form-section {
   margin-bottom: 12px;
-  animation: fadeInUp 0.6s ease-out;
-}
-
-.section-header {
-  margin-bottom: 6px;
 }
 
 .form-label {
@@ -987,92 +947,5 @@ onBeforeUnmount(() => {
 .help-icon {
   color: var(--ant-color-text-tertiary);
   cursor: help;
-}
-
-.path-input-group {
-  display: flex;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid var(--ant-color-border);
-}
-
-.path-input {
-  flex: 1;
-  border: none !important;
-  border-radius: 0 !important;
-}
-
-.path-button {
-  border: none;
-  border-radius: 0;
-  background: var(--ant-color-primary-bg);
-  color: var(--ant-color-primary);
-  font-weight: 600;
-  padding: 0 20px;
-  border-left: 1px solid var(--ant-color-border-secondary);
-}
-
-.config-form :deep(.ant-form-item) {
-  margin-bottom: 24px;
-}
-
-.maaend-config-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.mask-content {
-  background: var(--ant-color-bg-elevated);
-  border-radius: 8px;
-  padding: 24px;
-  max-width: 480px;
-  width: 100%;
-  text-align: center;
-  border: 1px solid var(--ant-color-border);
-}
-
-.mask-icon {
-  margin-bottom: 16px;
-}
-
-.mask-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-
-.mask-description {
-  font-size: 14px;
-  color: var(--ant-color-text-secondary);
-  margin: 0 0 24px;
-  line-height: 1.5;
-}
-
-.mask-actions {
-  display: flex;
-  justify-content: center;
-}
-
-@media (max-width: 768px) {
-  .config-card :deep(.ant-card-body) {
-    padding: 20px;
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>
