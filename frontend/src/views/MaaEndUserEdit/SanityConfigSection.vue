@@ -10,7 +10,38 @@
       />
     </div>
 
-    <a-row v-if="showSanityDetail" :gutter="24">
+    <template v-if="showSanityDetail">
+      <a-form-item :label="t('edit.maaEndSanityStrategy')">
+        <a-select
+          v-model:value="formData.Info.SanityStrategy"
+          :options="sanityStrategyOptions"
+          :disabled="controlsDisabled"
+          @change="emitSave('Info.SanityStrategy', formData.Info.SanityStrategy)"
+        />
+      </a-form-item>
+      <a-form-item v-if="isNativeStrategy">
+        <a-space direction="vertical" size="middle" style="width: 100%">
+          <a-alert type="info" show-icon :message="t('edit.maaEndNativeSanityHint')" />
+          <a-button
+            :loading="configLoading"
+            :disabled="controlsDisabled || showConfigMask"
+            @click="emit('configure')"
+          >
+            <template #icon><SettingOutlined /></template>
+            {{ t('edit.maaEndConfigureInventory') }}
+          </a-button>
+          <span>{{ t('edit.maaEndInventorySourceHint') }}</span>
+        </a-space>
+      </a-form-item>
+    </template>
+
+    <a-alert
+      v-if="showSanityDetail && formData.Info.SanityStrategy === 'Inventory'"
+      type="info"
+      show-icon
+      :message="t('edit.maaEndImsStrategyHint')"
+    />
+    <a-row v-if="showSanityDetail && isMasStrategy" :gutter="24">
       <a-col :xs="24" :sm="12">
         <a-form-item :label="t('edit.sanityTaskConfigurationMode')">
           <a-select
@@ -122,7 +153,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, watch } from 'vue'
-import { QuestionCircleOutlined } from '@ant-design/icons-vue'
+import { QuestionCircleOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import type { ComboBoxItem } from '@/api'
 import {
   PROTOCOL_SPACE_TASK_FIELD_MAP,
@@ -162,6 +193,8 @@ const props = withDefaults(
     optionsLoading?: boolean
     optionsLoaded?: boolean
     isPlanMode?: boolean
+    configLoading?: boolean
+    showConfigMask?: boolean
     // 默认值不写在 withDefaults 里：defineProps 会被提升到 setup() 之外，
     // 引用不到 useI18n() 的 t。兜底见下方 resolvedSanityModeOptions。
     // oxlint-disable-next-line vue/require-default-prop
@@ -174,6 +207,8 @@ const props = withDefaults(
     optionsLoading: false,
     optionsLoaded: false,
     isPlanMode: false,
+    configLoading: false,
+    showConfigMask: false,
     essenceMenuOptions: () => [],
     essenceTargetWeaponGroups: () => [],
     planModeConfig: null,
@@ -189,14 +224,24 @@ const resolvedSanityModeOptions = computed(
 const emit = defineEmits<{
   save: [key: string, value: any]
   saveBatch: [changes: FieldChange[]]
+  configure: []
 }>()
 
 const formData = props.formData
+const isNativeStrategy = computed(() => formData.Info.SanityStrategy === 'Native')
+const isMasStrategy = computed(() => (formData.Info.SanityStrategy ?? 'MAS') === 'MAS')
+const sanityStrategyOptions = computed(() => [
+  { label: t('edit.maaEndMasSanityStrategy'), value: 'MAS' },
+  { label: t('edit.maaEndNativeSanityStrategy'), value: 'Native' },
+  { label: t('edit.maaEndImsTitle'), value: 'Inventory' },
+])
 const controlsDisabled = computed(() => {
   return props.loading || !props.ifQuickConfig
 })
 
-const optionControlsDisabled = computed(() => controlsDisabled.value || props.optionsLoading)
+const optionControlsDisabled = computed(
+  () => controlsDisabled.value || props.optionsLoading || !isMasStrategy.value
+)
 const displayPlanConfig = computed(() =>
   props.planModeConfig ? normalizeMaaEndSanityConfig(props.planModeConfig) : null
 )
@@ -453,6 +498,7 @@ watch(
   [
     () => props.loading,
     () => props.optionsLoading,
+    () => formData.Info.SanityStrategy,
     () => formData.Task.SanityTaskType,
     () => props.essenceLocationOptions,
     () => props.essenceMenuOptions,

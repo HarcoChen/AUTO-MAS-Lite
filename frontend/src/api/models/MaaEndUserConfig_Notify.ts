@@ -4,6 +4,10 @@
 /* eslint-disable */
 export type MaaEndUserConfig_Notify = {
     /**
+     * 是否推送本轮养成材料状态
+     */
+    IfSendInventory?: (boolean | null);
+    /**
      * 是否启用通知
      */
     Enabled?: (boolean | null);

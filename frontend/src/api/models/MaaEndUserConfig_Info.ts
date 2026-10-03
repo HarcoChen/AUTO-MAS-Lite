@@ -28,6 +28,10 @@ export type MaaEndUserConfig_Info = {
      */
     IfQuickConfig?: (boolean | null);
     /**
+     * 理智任务策略：指定任务、原生策略或 IMS 库存计划
+     */
+    SanityStrategy?: ('MAS' | 'Native' | 'Inventory' | null);
+    /**
      * 理智任务配置模式
      */
     SanityMode?: (string | null);

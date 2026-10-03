@@ -27,6 +27,18 @@
         </div>
       </div>
 
+      <div v-if="showInventory" class="notify-channel-item">
+        <div class="notify-channel-header">
+          <span>{{ t('edit.maaEndImsNotify') }}</span>
+          <a-switch
+            v-model:checked="notify.IfSendInventory"
+            :disabled="loading || !notify.Enabled"
+            @change="emitSave('Notify.IfSendInventory', notify.IfSendInventory)"
+          />
+        </div>
+        <div class="notify-channel-config">{{ t('edit.maaEndImsNotifyHint') }}</div>
+      </div>
+
       <div v-if="showSixStar" class="notify-channel-item">
         <div class="notify-channel-header">
           <span class="notify-channel-name">{{ t('edit.notifyRecruit') }}</span>
@@ -115,6 +127,7 @@ import WebhookManager from '@/components/WebhookManager.vue'
 type UserNotifyConfigData = {
   Enabled?: boolean | null
   IfSendStatistic?: boolean | null
+  IfSendInventory?: boolean | null
   IfSendSixStar?: boolean | null
   IfSendDropStatistics?: boolean | null
   IfSendMail?: boolean | null
@@ -133,6 +146,7 @@ withDefaults(
     scriptId?: string | null
     userId?: string | null
     showSixStar?: boolean
+    showInventory?: boolean
     // 掉落统计开关（BGI「奖励识别」汇总）：仅 BetterGI 用户编辑页启用
     showDropStatistics?: boolean
     // 卡片化页面（如 MaaEnd 用户编辑页）由外层卡片提供标题时隐藏内部标题
@@ -143,6 +157,7 @@ withDefaults(
     scriptId: null,
     userId: null,
     showSixStar: false,
+    showInventory: false,
     showDropStatistics: false,
     hideSectionHeader: false,
   }

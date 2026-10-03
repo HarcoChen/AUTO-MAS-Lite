@@ -4,6 +4,14 @@
 /* eslint-disable */
 export type MaaEndUserConfig_Task = {
     /**
+     * 上游库存目标输入值（JSON 对象，原字段名与字符串值透传）
+     */
+    SupplyPlanLimits?: (string | null);
+    /**
+     * 库存计划的上游领取方式
+     */
+    ProtocolSpaceObtainModeClaim?: (string | null);
+    /**
      * 理智任务类型
      */
     SanityTaskType?: ('OperatorProgression' | 'WeaponProgression' | 'CrisisDrills' | 'Essence' | null);

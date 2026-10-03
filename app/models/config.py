@@ -1356,6 +1356,13 @@ class MaaEndUserConfig(ConfigBase):
         self.Info_IfQuickConfig = ConfigItem(
             "Info", "IfQuickConfig", True, BoolValidator()
         )
+        ## 理智任务执行策略：指定任务、保留原生策略或覆写库存目标
+        self.Info_SanityStrategy = ConfigItem(
+            "Info",
+            "SanityStrategy",
+            "MAS",
+            OptionsValidator(["MAS", "Native", "Inventory"]),
+        )
         ## 理智任务配置模式
         self.Info_SanityMode = ConfigItem(
             "Info",
@@ -1396,6 +1403,14 @@ class MaaEndUserConfig(ConfigBase):
 
         ## Task ------------------------------------------------------------
         init_maaend_task_config(self)
+        ## 上游库存目标输入值，按原字段名与字符串值透传；未填写的目标为 0
+        self.Task_SupplyPlanLimits = ConfigItem(
+            "Task", "SupplyPlanLimits", "{ }", JSONValidator(dict)
+        )
+        ## 库存任务领取方式，取值由当前 MaaEnd 安装资源声明
+        self.Task_ProtocolSpaceObtainModeClaim = ConfigItem(
+            "Task", "ProtocolSpaceObtainModeClaim", "ObtainScaling2", StringValidator()
+        )
 
         ## Data ------------------------------------------------------------
         ## 上次代理日期
@@ -1420,6 +1435,10 @@ class MaaEndUserConfig(ConfigBase):
         ## Notify ----------------------------------------------------------
         ## 是否启用通知
         self.Notify_Enabled = ConfigItem("Notify", "Enabled", False, BoolValidator())
+        ## 是否推送本轮养成材料状态，与统计通知和任务节点开关独立
+        self.Notify_IfSendInventory = ConfigItem(
+            "Notify", "IfSendInventory", False, BoolValidator()
+        )
         ## 任务报告节点详情的推送模式（log_box 采集的关键节点）：
         ## 关闭 = 不采集；逐条 = 采集并逐条带回时间戳；汇总 = 采集并按状态聚合
         self.Notify_PushLogMode = ConfigItem(
@@ -1520,7 +1539,17 @@ class MaaEndUserConfig(ConfigBase):
         tags.append(_tag_remained_days(self))
 
         # 理智任务标签
-        if self.get("Task", "IfSanity"):
+        if self.get("Task", "IfSanity") and self.get("Info", "SanityStrategy") in (
+            "Native",
+            "Inventory",
+        ):
+            label = (
+                "IMS 库存计划"
+                if self.get("Info", "SanityStrategy") == "Inventory"
+                else "MaaEnd 原生策略"
+            )
+            tags.append({"text": f"理智任务：{label}", "color": "blue"})
+        elif self.get("Task", "IfSanity"):
             task_key, _ = self.get_effective_sanity_task_key()
             sanity_task_type = task_key["SanityTaskType"]
             tags.append(

@@ -502,6 +502,7 @@ async def get_maaend_options(options: ScriptDeleteIn = Body(...)) -> MaaEndOptio
         return MaaEndOptionsOut(
             projectName=data["projectName"],
             projectVersion=data["projectVersion"],
+            inventory=data.get("inventory"),
             autoCollectGroups=[
                 MaaEndAutoCollectGroup(**item)
                 for item in data.get("autoCollectGroups", [])

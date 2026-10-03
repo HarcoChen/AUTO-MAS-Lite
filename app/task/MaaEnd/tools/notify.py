@@ -22,6 +22,7 @@
 
 import mimetypes
 from collections.abc import Sequence
+from html import escape
 from pathlib import Path
 
 from app.core import Config
@@ -29,6 +30,7 @@ from app.core.notify import (
     DispatchResult,
     dispatch,
     statistic_targets,
+    user_target,
 )
 from app.models.config import MaaEndUserConfig
 from app.models.notification import NotificationImage, NotifyPayload
@@ -141,6 +143,30 @@ async def push_notification(
     if mode == "代理结果":
         return await push_proxy_result(
             title=title, message=message, task_info=task_info, images=images
+        )
+
+    if mode == "养成材料":
+        if (
+            user_config is None
+            or not user_config.get("Notify", "Enabled")
+            or not user_config.get("Notify", "IfSendInventory")
+        ):
+            return DispatchResult()
+        lines = message["inventory_report"] or [
+            "本轮未收到养成材料报告，库存与达标状态未知。"
+        ]
+        text = "\n".join(
+            [
+                f"账号：{message['user_info']}",
+                f"开始时间：{message['start_time']}",
+                f"结束时间：{message['end_time']}",
+                *lines,
+                "扫描库存为扫描时的数量，本次获得为奖励数量；以 MaaEnd 明确报告的达标状态为准。",
+            ]
+        )
+        return await dispatch(
+            NotifyPayload(title=title, text=text, html=f"<pre>{escape(text)}</pre>"),
+            [user_target(user_config)],
         )
 
     if mode == "统计信息":

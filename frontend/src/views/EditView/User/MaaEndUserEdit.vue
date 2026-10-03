@@ -103,7 +103,11 @@
             <template #title>{{ t('edit.maaEndSanitySection') }}</template>
             <template #extra>
               <a-button
-                v-if="formData.Task.IfSanity && isSanityPlanMode"
+                v-if="
+                  formData.Task.IfSanity &&
+                  isSanityPlanMode &&
+                  formData.Info.SanityStrategy === 'MAS'
+                "
                 type="link"
                 class="plans-button"
                 @click="handleGoToPlans"
@@ -124,8 +128,24 @@
               :is-plan-mode="isSanityPlanMode"
               :sanity-mode-options="sanityModeOptions"
               :plan-mode-config="planModeConfig"
+              :config-loading="maaEndConfigLoading"
+              :show-config-mask="showMaaEndConfigMask"
               @save="handleFieldSave"
               @save-batch="handleFieldsSave"
+              @configure="handleMaaEndConfig"
+            />
+          </a-card>
+
+          <a-card v-if="formData.Info.IfQuickConfig" id="section-ims" class="section-card">
+            <template #title>{{ t('edit.maaEndImsTitle') }}</template>
+            <InventoryConfigSection
+              :form-data="formData"
+              :inventory="inventoryOptions"
+              :loading="loading"
+              :options-loading="maaEndOptionsLoading"
+              @save="handleFieldSave"
+              @save-batch="handleFieldsSave"
+              @reload="loadMaaEndOptions"
             />
           </a-card>
 
@@ -183,6 +203,7 @@
                 :script-id="scriptId"
                 :user-id="userId"
                 hide-section-header
+                show-inventory
                 @save="handleFieldSave"
               />
             </a-collapse-panel>
@@ -271,7 +292,8 @@ import BasicInfoSection from '@/views/MaaEndUserEdit/BasicInfoSection.vue'
 import DailyOnceSection from '@/views/MaaEndUserEdit/DailyOnceSection.vue'
 import ConfigSourceSection from '@/views/MaaEndUserEdit/ConfigSourceSection.vue'
 import DeliveryConfigSection from '@/views/MaaEndUserEdit/DeliveryConfigSection.vue'
-import type { MaaEndAutoCollectGroup } from '@/api'
+import type { MaaEndAutoCollectGroup, MaaEndInventoryOptions } from '@/api'
+import InventoryConfigSection from '@/views/MaaEndUserEdit/InventoryConfigSection.vue'
 import AutoCollectConfigSection from '@/views/MaaEndUserEdit/AutoCollectConfigSection.vue'
 import TaskConfigSection from '@/views/MaaEndUserEdit/TaskConfigSection.vue'
 import SanityConfigSection from '@/views/MaaEndUserEdit/SanityConfigSection.vue'
@@ -323,6 +345,7 @@ const resourceOptions = [{ label: '官服', value: '官服' }]
 const essenceLocationOptions = ref<ComboBoxItem[]>([])
 const essenceMenuOptions = ref<ComboBoxItem[]>([])
 const autoCollectGroups = ref<MaaEndAutoCollectGroup[]>([])
+const inventoryOptions = ref<MaaEndInventoryOptions | null>(null)
 const essenceTargetWeaponGroups = ref<MaaEndEssenceTargetGroup[]>([])
 const sanityModeOptions = ref<Array<{ label: string; value: string }>>([
   { label: t('edit.fixed'), value: 'Fixed' },
@@ -341,6 +364,7 @@ const anchorItems = computed(() => {
   if (formData.Info.IfQuickConfig) {
     items.push(
       { key: 'sanity', href: '#section-sanity', title: t('edit.maaEndSanitySection') },
+      { key: 'ims', href: '#section-ims', title: t('edit.maaEndImsTitle') },
       { key: 'collect', href: '#section-collect', title: t('edit.maaEndAutoCollectConfig') },
       { key: 'delivery', href: '#section-delivery', title: t('edit.maaEndDeliveryConfig') },
       { key: 'limits', href: '#section-limits', title: t('edit.maaEndDailyOnceTasks') }
@@ -361,6 +385,7 @@ const getDefaultMaaEndUserData = () => ({
     Password: '',
     Mode: '脚本',
     IfQuickConfig: true,
+    SanityStrategy: 'MAS',
     SanityMode: 'Fixed',
     Resource: '官服',
     RemainedDay: -1,
@@ -372,6 +397,8 @@ const getDefaultMaaEndUserData = () => ({
     Tag: '',
   },
   Task: {
+    SupplyPlanLimits: '{}',
+    ProtocolSpaceObtainModeClaim: 'ObtainScaling2',
     SanityTaskType: 'OperatorProgression',
     OperatorProgression: 'OperatorEXP',
     WeaponProgression: 'WeaponEXP',
@@ -406,6 +433,7 @@ const getDefaultMaaEndUserData = () => ({
     DailyOnceTasks: '[ ]',
   },
   Notify: {
+    IfSendInventory: false,
     Enabled: false,
     PushLogMode: '汇总',
     IfSendStatistic: false,
@@ -452,18 +480,21 @@ const formData = reactive({
   ...getDefaultMaaEndUserData(),
 })
 
-// 遮罩文案按配置来源区分：脚本=脚本级共享配置、用户=当前用户独立配置。
-// 直控直接用 MaaEnd 原有配置，在 MaaEnd 里改，MAS 不给配置入口，走不到这里。
+// 遮罩与运行下发使用同一配置来源，直控会话直接编辑本体配置。
 const maaEndConfigMaskTitle = computed(() =>
-  formData.Info.Mode === '用户'
-    ? t('scripts.mask.maaEndUserTitle')
-    : t('scripts.mask.maaEndScriptTitle')
+  formData.Info.Mode === '直控'
+    ? t('edit.maaEndNativeSanityStrategy')
+    : formData.Info.Mode === '用户'
+      ? t('scripts.mask.maaEndUserTitle')
+      : t('scripts.mask.maaEndScriptTitle')
 )
 
 const maaEndConfigMaskDesc = computed(() =>
-  formData.Info.Mode === '用户'
-    ? t('scripts.mask.maaEndUserDesc', { name: formData.Info.Name || '' })
-    : t('scripts.mask.maaEndScriptDesc')
+  formData.Info.Mode === '直控'
+    ? t('edit.maaEndDirectInventoryConfigHint')
+    : formData.Info.Mode === '用户'
+      ? t('scripts.mask.maaEndUserDesc', { name: formData.Info.Name || '' })
+      : t('scripts.mask.maaEndScriptDesc')
 )
 
 const rules = computed<Record<string, Rule[]>>(() => ({
@@ -595,6 +626,7 @@ const loadMaaEndOptions = async () => {
     const response = await getMaaEndOptions(scriptId)
     if (response?.code === 200) {
       autoCollectGroups.value = response.autoCollectGroups ?? []
+      inventoryOptions.value = response.inventory ?? null
       essenceLocationOptions.value = response.essenceLocations
       essenceMenuOptions.value = response.essenceMenus ?? []
       essenceTargetWeaponGroups.value = response.essenceTargetWeaponGroups ?? []
@@ -625,7 +657,7 @@ const loadSanityModeOptions = async () => {
 const loadSanityPlan = async (planId: string) => {
   const version = ++sanityPlanLoadVersion
 
-  if (!planId || planId === 'Fixed') {
+  if (!planId || planId === 'Fixed' || formData.Info.SanityStrategy !== 'MAS') {
     planModeConfig.value = null
     return
   }
@@ -712,6 +744,8 @@ const loadUserData = async () => {
 const handleMaaEndConfig = async () => {
   if (configLocked.value) return
   if (!userId) return
+  // 先完成自动保存，确保配置会话沿用界面当前选择的来源。
+  if (!(await handleFieldSave('Info.Mode', formData.Info.Mode))) return
   await startSession(userId)
 }
 
@@ -929,12 +963,9 @@ onMounted(async () => {
   isInitializing.value = false
 })
 
-watch(
-  () => formData.Info.SanityMode,
-  value => {
-    void loadSanityPlan(value)
-  }
-)
+watch([() => formData.Info.SanityMode, () => formData.Info.SanityStrategy], ([value]) => {
+  void loadSanityPlan(value)
+})
 
 onUnmounted(() => {
   // 退出编辑页：先停会话再归档 MAS 侧终态——并行会与 final_task 的

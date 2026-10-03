@@ -953,7 +953,16 @@ class MaaEndAutoCollectGroup(BaseModel):
     defaultCases: list[str] = Field(..., description="上游默认路线")
 
 
+class MaaEndInventoryOptions(BaseModel):
+    description: str = Field(..., description="上游库存目标填写说明")
+    inputs: List[ComboBoxItem] = Field(..., description="上游库存目标输入字段")
+    claimModes: List[ComboBoxItem] = Field(..., description="上游库存任务领取方式")
+
+
 class MaaEndOptionsOut(OutBase):
+    inventory: Optional[MaaEndInventoryOptions] = Field(
+        default=None, description="协议空间库存配置；旧版不支持时为空"
+    )
     projectName: str = Field(default="mxu", description="MaaEnd 资源声明的项目名称")
     projectVersion: str = Field(default="", description="MaaEnd 资源声明的项目版本")
     autoCollectGroups: List[MaaEndAutoCollectGroup] = Field(
@@ -2859,6 +2868,9 @@ class MaaEndUserConfig_Info(BaseModel):
         description="配置来源（脚本共享、用户独立、脚本直控）",
     )
     IfQuickConfig: Optional[bool] = Field(default=None, description="是否启用快速配置")
+    SanityStrategy: Optional[Literal["MAS", "Native", "Inventory"]] = Field(
+        default=None, description="理智任务策略：指定任务、原生策略或 IMS 库存计划"
+    )
     SanityMode: Optional[str] = Field(default=None, description="理智任务配置模式")
     Resource: Optional[Literal["官服"]] = Field(default=None, description="资源名称")
     RemainedDay: Optional[int] = Field(default=None, description="剩余天数")
@@ -2875,6 +2887,13 @@ class MaaEndUserConfig_Info(BaseModel):
 
 
 class MaaEndUserConfig_Task(BaseModel):
+    SupplyPlanLimits: Optional[str] = Field(
+        default=None,
+        description="上游库存目标输入值（JSON 对象，原字段名与字符串值透传）",
+    )
+    ProtocolSpaceObtainModeClaim: Optional[str] = Field(
+        default=None, description="库存计划的上游领取方式"
+    )
     SanityTaskType: Optional[
         Literal["OperatorProgression", "WeaponProgression", "CrisisDrills", "Essence"]
     ] = Field(default=None, description="理智任务类型")
@@ -2951,6 +2970,9 @@ class MaaEndUserConfig_Task(BaseModel):
 
 
 class MaaEndUserConfig_Notify(BaseModel):
+    IfSendInventory: Optional[bool] = Field(
+        default=None, description="是否推送本轮养成材料状态"
+    )
     Enabled: Optional[bool] = Field(default=None, description="是否启用通知")
     PushLogMode: Optional[Literal["关闭", "逐条", "汇总"]] = Field(
         default=None,

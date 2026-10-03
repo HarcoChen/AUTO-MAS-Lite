@@ -223,6 +223,7 @@ export type { MaaEndConfig_Game } from './models/MaaEndConfig_Game';
 export type { MaaEndConfig_Info } from './models/MaaEndConfig_Info';
 export type { MaaEndConfig_Run } from './models/MaaEndConfig_Run';
 export type { MaaEndEssenceTargetGroup } from './models/MaaEndEssenceTargetGroup';
+export type { MaaEndInventoryOptions } from './models/MaaEndInventoryOptions';
 export type { MaaEndOptionsOut } from './models/MaaEndOptionsOut';
 export { MaaEndPlanConfig_Info } from './models/MaaEndPlanConfig_Info';
 export type { MaaEndPlanConfig_Input } from './models/MaaEndPlanConfig_Input';

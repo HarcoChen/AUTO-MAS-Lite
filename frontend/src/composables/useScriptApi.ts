@@ -527,6 +527,7 @@ export function useScriptApi() {
                           maaEndUserData.Info?.SanityMode !== undefined
                             ? maaEndUserData.Info.SanityMode
                             : 'Fixed',
+                        SanityStrategy: maaEndUserData.Info?.SanityStrategy ?? 'MAS',
                         Resource:
                           maaEndUserData.Info?.Resource !== undefined
                             ? maaEndUserData.Info.Resource
@@ -545,6 +546,9 @@ export function useScriptApi() {
                           maaEndUserData.Info?.Tag !== undefined ? maaEndUserData.Info.Tag : null,
                       },
                       Task: {
+                        SupplyPlanLimits: maaEndUserData.Task?.SupplyPlanLimits ?? '{}',
+                        ProtocolSpaceObtainModeClaim:
+                          maaEndUserData.Task?.ProtocolSpaceObtainModeClaim ?? 'ObtainScaling2',
                         SanityTaskType:
                           maaEndUserData.Task?.SanityTaskType != null
                             ? maaEndUserData.Task.SanityTaskType
@@ -679,6 +683,7 @@ export function useScriptApi() {
                           maaEndUserData.Notify?.Enabled !== undefined
                             ? maaEndUserData.Notify.Enabled
                             : false,
+                        IfSendInventory: maaEndUserData.Notify?.IfSendInventory ?? false,
                         IfSendStatistic:
                           maaEndUserData.Notify?.IfSendStatistic !== undefined
                             ? maaEndUserData.Notify.IfSendStatistic

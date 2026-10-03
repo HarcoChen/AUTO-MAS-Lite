@@ -5,6 +5,7 @@
 import type { ComboBoxItem } from './ComboBoxItem';
 import type { MaaEndAutoCollectGroup } from './MaaEndAutoCollectGroup';
 import type { MaaEndEssenceTargetGroup } from './MaaEndEssenceTargetGroup';
+import type { MaaEndInventoryOptions } from './MaaEndInventoryOptions';
 export type MaaEndOptionsOut = {
     /**
      * 状态码
@@ -18,6 +19,10 @@ export type MaaEndOptionsOut = {
      * 操作消息
      */
     message?: string;
+    /**
+     * 协议空间库存配置；旧版不支持时为空
+     */
+    inventory?: (MaaEndInventoryOptions | null);
     /**
      * MaaEnd 资源声明的项目名称
      */
